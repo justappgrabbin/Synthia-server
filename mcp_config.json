@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "trident": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": ".",
+      "description": "TRIDENT 3-head LM with P2P RAG"
+    }
+  }
+}
