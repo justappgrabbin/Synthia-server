@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>YOU·N·I·VERSE — Matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Syne+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--void:#050308;--deep:#0a0612;--field:#0f0a1e;--rim:#1e1436;--gate:#2e2050;--pulse:#6b3fa0;--signal:#9d6fe8;--bright:#c4a0ff;--arc:#e8d5ff;--gold:#d4a843;--alive:#3dd68c;--warn:#e05050;--text:#d0c8ee;--muted:#6a5a88;--dim:#3a2a5a;--body-col:#c94040;--mind-col:#4080c9;--heart-col:#a040c9;--shadow-col:#405060;--font-d:'Syne',sans-serif;--font-b:'DM Sans',sans-serif;--font-m:'Syne Mono',monospace}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:var(--void);color:var(--text);font-family:var(--font-b);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 2 L54 16 L54 44 L28 58 L2 44 L2 16 Z' fill='none' stroke='%23160e2a' stroke-width='0.5'/%3E%3Cpath d='M28 52 L54 66 L54 94 L28 108 L2 94 L2 66 Z' fill='none' stroke='%23160e2a' stroke-width='0.5'/%3E%3C/svg%3E");opacity:.4;pointer-events:none;z-index:0}
+#nav{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;background:rgba(5,3,8,.92);border-bottom:1px solid var(--rim);backdrop-filter:blur(12px);z-index:1000;padding:0 16px;gap:2px;overflow-x:auto}
+#nav a{font-family:var(--font-m);font-size:10px;letter-spacing:.15em;color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:3px;transition:all .2s;white-space:nowrap}
+#nav a:hover{color:var(--bright);background:var(--gate)}#nav a.active{color:var(--bright);background:var(--rim)}
+.mesh-dot{width:7px;height:7px;border-radius:50%;margin-left:auto;flex-shrink:0}.mesh-dot.off{background:var(--muted)}.mesh-dot.on{background:var(--alive);box-shadow:0 0 6px var(--alive)}
+main{position:relative;z-index:1;padding:64px 16px 40px;max-width:900px;margin:0 auto}
+#no-node{text-align:center;padding:80px 20px}
+#no-node h2{font-family:var(--font-d);font-size:32px;color:var(--muted);margin-bottom:16px}
+.go-btn{display:inline-block;padding:12px 28px;background:var(--pulse);color:var(--arc);font-family:var(--font-d);font-size:15px;text-decoration:none;letter-spacing:.08em;margin-top:16px}
+.pg-head{margin-bottom:28px;padding-bottom:16px;border-bottom:1px solid var(--rim)}
+.pg-tag{font-family:var(--font-m);font-size:9px;letter-spacing:.3em;color:var(--gold);margin-bottom:8px}
+.pg-name{font-family:var(--font-d);font-size:clamp(28px,6vw,52px);line-height:.95;background:linear-gradient(180deg,var(--arc),var(--signal));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.pg-addr{font-family:var(--font-m);font-size:9px;color:var(--muted);margin-top:8px;word-break:break-all}
+.pg-lattice{font-family:var(--font-m);font-size:10px;color:var(--gold);margin-top:4px;letter-spacing:.05em}
+.mode-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:24px}
+.mode-btn{padding:5px 12px;font-family:var(--font-m);font-size:9px;letter-spacing:.2em;border:1px solid var(--rim);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s}
+.mode-btn.active{border-color:var(--signal);color:var(--bright);background:var(--gate)}.mode-btn:hover:not(.active){border-color:var(--dim);color:var(--text)}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--rim);margin-bottom:24px;overflow-x:auto}
+.tab{font-family:var(--font-m);font-size:9px;letter-spacing:.2em;color:var(--muted);padding:10px 16px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.tab.active{color:var(--bright);border-bottom-color:var(--signal)}.tab:hover:not(.active){color:var(--text)}
+.panel{display:none}.panel.active{display:block}
+.trinity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.tc{padding:20px;border:1px solid;position:relative;overflow:hidden}
+.tc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.tc.body{border-color:rgba(201,64,64,.3)}.tc.body::before{background:var(--body-col)}
+.tc.mind{border-color:rgba(64,128,201,.3)}.tc.mind::before{background:var(--mind-col)}
+.tc.heart{border-color:rgba(160,64,201,.3)}.tc.heart::before{background:var(--heart-col)}
+.tc.shadow{border-color:rgba(64,80,96,.3)}.tc.shadow::before{background:var(--shadow-col)}
+.tc-label{font-family:var(--font-m);font-size:7px;letter-spacing:.3em;color:var(--muted);margin-bottom:8px}
+.tc-gate{font-family:var(--font-d);font-size:36px;font-weight:800;line-height:1}
+.tc.body .tc-gate{color:var(--body-col)}.tc.mind .tc-gate{color:var(--mind-col)}.tc.heart .tc-gate{color:var(--heart-col)}.tc.shadow .tc-gate{color:var(--shadow-col)}
+.tc-name{font-size:11px;color:var(--text);margin-top:4px;font-weight:500}
+.tc-system{font-family:var(--font-m);font-size:8px;color:var(--muted);margin-top:2px}
+.tc-coord{font-family:var(--font-m);font-size:8px;color:var(--muted);margin-top:6px}
+.tc-lattice{font-family:var(--font-m);font-size:9px;margin-top:6px;letter-spacing:.05em}
+.tc.body .tc-lattice{color:var(--body-col)}.tc.mind .tc-lattice{color:var(--mind-col)}.tc.heart .tc-lattice{color:var(--heart-col)}
+.coh-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.coh-card{padding:14px;background:var(--deep);border:1px solid var(--rim)}
+.coh-label{font-family:var(--font-m);font-size:7px;letter-spacing:.2em;color:var(--muted);margin-bottom:4px}
+.coh-val{font-family:var(--font-d);font-size:28px;color:var(--bright);line-height:1}
+.coh-track{height:2px;background:var(--rim);margin-top:8px}
+.coh-fill{height:100%;background:linear-gradient(90deg,var(--pulse),var(--bright));transition:width .8s ease}
+.soul-slap-block{background:var(--deep);border-left:3px solid var(--signal);padding:20px;margin-bottom:12px}
+.ss-field-tag{font-family:var(--font-m);font-size:8px;letter-spacing:.25em;margin-bottom:10px}
+.ss-field-tag.body{color:var(--body-col)}.ss-field-tag.mind{color:var(--mind-col)}.ss-field-tag.heart{color:var(--heart-col)}
+.ss-text{font-size:15px;line-height:1.7;color:var(--arc);font-weight:300}
+.ss-commentary{font-family:var(--font-m);font-size:8px;color:var(--muted);margin-top:10px;line-height:1.6;word-break:break-word}
+.ss-path{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.path-item{font-family:var(--font-m);font-size:9px;padding:3px 8px;border:1px solid}
+.path-shadow{color:#e05050;border-color:rgba(224,80,80,.3)}.path-arrow{color:var(--muted)}
+.path-gift{color:var(--alive);border-color:rgba(61,214,140,.3)}.path-siddhi{color:var(--gold);border-color:rgba(212,168,67,.3)}
+.nine-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.nb-card{padding:14px;background:var(--deep);border:1px solid var(--rim);position:relative}
+.nb-bar{position:absolute;left:0;top:0;bottom:0;width:3px}
+.nb-name{font-family:var(--font-m);font-size:9px;letter-spacing:.2em;color:var(--muted);margin-bottom:6px;padding-left:10px}
+.nb-amp{font-family:var(--font-d);font-size:32px;line-height:1;padding-left:10px}
+.nb-gate{font-family:var(--font-m);font-size:8px;color:var(--muted);margin-top:4px;padding-left:10px}
+.nb-center{font-size:10px;color:var(--text);margin-top:2px;padding-left:10px}
+.planet-table{width:100%;border-collapse:collapse;font-family:var(--font-m);font-size:10px}
+.planet-table th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rim);color:var(--muted);font-size:8px;letter-spacing:.15em;font-weight:400}
+.planet-table td{padding:8px 10px;border-bottom:1px solid rgba(30,20,54,.5);color:var(--text);vertical-align:top}
+.planet-table tr:hover td{background:var(--deep)}
+.p-name{color:var(--bright)}.p-lvl{font-size:8px;padding:2px 6px;border:1px solid;display:inline-block}
+.p-lvl.UNIFIED{color:var(--alive);border-color:rgba(61,214,140,.4)}.p-lvl.ALIGNED{color:var(--gold);border-color:rgba(212,168,67,.4)}
+.p-lvl.MODERATE{color:var(--signal);border-color:rgba(157,111,232,.4)}.p-lvl.DIVERGENT{color:var(--warn);border-color:rgba(224,80,80,.4)}
+.p-lvl.FRAGMENTED{color:#888;border-color:#444}
+.sent-planet-block{margin-bottom:12px;border:1px solid var(--rim);overflow:hidden}
+.sent-planet-head{background:var(--deep);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.sent-planet-head:hover{background:var(--field)}
+.sent-planet-name{font-family:var(--font-m);font-size:10px;color:var(--bright);letter-spacing:.15em}
+.sent-planet-lattice{font-family:var(--font-m);font-size:8px;color:var(--muted)}
+.sent-planet-body{display:none;padding:14px}.sent-planet-body.open{display:block}
+.sent-sys{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--rim)}.sent-sys:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.sent-sys-tag{font-family:var(--font-m);font-size:7px;letter-spacing:.2em;margin-bottom:6px}
+.sent-soul{font-size:13px;line-height:1.65;color:var(--arc)}
+.sent-path{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.penta-block{padding:24px;background:var(--deep);border:1px solid var(--rim);text-align:center;margin-bottom:20px}
+.penta-pos{font-family:var(--font-d);font-size:72px;font-weight:800;color:var(--signal);line-height:1}
+.penta-name{font-family:var(--font-m);font-size:12px;letter-spacing:.3em;color:var(--gold);margin-top:4px}
+.penta-desc{font-size:14px;color:var(--text);max-width:440px;margin:12px auto 0;line-height:1.6}
+.fade-in{animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<nav id="nav">
+  <a href="index.html">◈ ENTER</a><a href="matrix.html" class="active">⬡ MATRIX</a>
+  <a href="network.html">◯ NETWORK</a><a href="profile.html">△ PROFILE</a><a href="resonance.html">≋ RESONANCE</a>
+  <div class="mesh-dot off" id="mesh-dot"></div>
+</nav>
+<main>
+  <div id="no-node" style="display:none">
+    <h2>No node detected</h2>
+    <p style="color:var(--muted)">Enter your birth data first.</p>
+    <a href="index.html" class="go-btn">↗ ENTER THE FIELD</a>
+  </div>
+  <div id="matrix-content" style="display:none">
+    <div class="pg-head">
+      <div class="pg-tag">⬡ CONSCIOUSNESS MATRIX</div>
+      <div class="pg-name" id="pg-name">—</div>
+      <div class="pg-addr" id="pg-addr">—</div>
+      <div class="pg-lattice" id="pg-lattice">—</div>
+    </div>
+    <div class="mode-row" id="mode-row"></div>
+    <div class="tabs">
+      <div class="tab active" data-tab="trinity">◈ TRINITY</div>
+      <div class="tab" data-tab="sentences">◎ SENTENCES</div>
+      <div class="tab" data-tab="nine">⬡ 9 BODIES</div>
+      <div class="tab" data-tab="planets">◯ PLANETS</div>
+      <div class="tab" data-tab="penta">△ PENTA</div>
+    </div>
+    <div class="panel active" id="panel-trinity">
+      <div class="trinity-grid" id="trinity-cards"></div>
+      <div style="font-family:var(--font-m);font-size:8px;letter-spacing:.25em;color:var(--muted);margin-bottom:10px">FIELD COHERENCE</div>
+      <div class="coh-grid" id="coh-grid"></div>
+      <div style="font-family:var(--font-m);font-size:8px;letter-spacing:.25em;color:var(--muted);margin:20px 0 10px">PRIMARY SENTENCES</div>
+      <div id="trinity-sentences"></div>
+    </div>
+    <div class="panel" id="panel-sentences">
+      <div style="font-family:var(--font-m);font-size:8px;letter-spacing:.25em;color:var(--muted);margin-bottom:16px">ALL PLANETS × 3 SYSTEMS — LATTICE SENTENCES</div>
+      <div id="all-sentences-list"></div>
+    </div>
+    <div class="panel" id="panel-nine">
+      <div style="font-family:var(--font-m);font-size:8px;letter-spacing:.25em;color:var(--muted);margin-bottom:16px">9-BODY FIELD AMPLITUDES · TRINITY INTERFERENCE ENGINE</div>
+      <div class="nine-grid" id="nine-grid"></div>
+    </div>
+    <div class="panel" id="panel-planets">
+      <div style="margin-bottom:12px;font-family:var(--font-m);font-size:8px;letter-spacing:.25em;color:var(--muted)">PLANETARY FIELD SPREAD ANALYSIS</div>
+      <table class="planet-table"><thead><tr>
+        <th>PLANET</th><th>TROPICAL</th><th>SIDEREAL</th><th>DRACONIC</th><th>SPREAD</th><th>LEVEL</th>
+      </tr></thead><tbody id="planet-tbody"></tbody></table>
+    </div>
+    <div class="panel" id="panel-penta">
+      <div class="penta-block">
+        <div class="penta-pos" id="penta-pos">—</div>
+        <div class="penta-name" id="penta-name">—</div>
+        <div class="penta-desc" id="penta-desc">—</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px" id="penta-wheel"></div>
+      <div style="padding:16px;background:var(--deep);border:1px solid var(--rim)">
+        <div style="font-family:var(--font-m);font-size:8px;letter-spacing:.2em;color:var(--muted);margin-bottom:10px">SENTENCE</div>
+        <div style="font-size:13px;line-height:1.7;color:var(--text)" id="penta-sentence"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const node=(()=>{try{const r=localStorage.getItem('yunv_node');return r?JSON.parse(r):null;}catch(e){return null;}})();
+const MODES=['wake','drowsy','meditation','flow','rem'];
+const MLABELS={wake:'Wake',drowsy:'Drowsy',meditation:'Meditation',flow:'Flow',rem:'REM'};
+const PNAMES=['','Foundation','Connector','Provider','Director','Transmitter'];
+const PDESCS=['','Holds the physical structure. Security, material stability.','Bridges positions — relational flow, translation between field types.','Generates resources — material, energetic, creative.','Holds vision, sets direction. Clarity others orient around.','Projects the field outward. Where the Penta touches the world.'];
+const BCOLS={Mind:'#e8705a',Heart:'#5a8ae8',Body:'#a05ae8',Soul:'#5ae8a0',Spirit:'#e8c05a',Shadow:'#5a7080',Higher:'#c0e8ff',Lower:'#804040',Core:'#d4a843'};
+let currentMode='wake';
+
+if(!node){document.getElementById('no-node').style.display='block';}
+else{document.getElementById('matrix-content').style.display='block';buildUI(node);}
+
+function buildUI(n){
+  const r=n.report;
+  document.getElementById('pg-name').textContent=n.name||'Unknown';
+  document.getElementById('pg-addr').textContent=n.address||'—';
+  const meta=r.sentences?._meta;
+  if(meta){
+    const addr=`${meta.body_lattice??'?'}.${meta.mind_lattice??'?'}.${meta.heart_lattice??'?'}`;
+    document.getElementById('pg-lattice').textContent=`◈ TRINITY ADDRESS: ${addr}  ·  ${(meta.total_addresses||0).toLocaleString()} POSSIBLE POSITIONS`;
+  }
+  const mr=document.getElementById('mode-row');
+  MODES.forEach(m=>{
+    const b=document.createElement('button');
+    b.className='mode-btn'+(m===currentMode?' active':'');
+    b.textContent=MLABELS[m];
+    b.onclick=()=>switchMode(m,n);
+    mr.appendChild(b);
+  });
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.onclick=()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+    };
+  });
+  renderTrinity(r);renderNine(r);renderPlanets(r);renderPenta(r);renderSentences(r);
+}
+
+function switchMode(mode,n){
+  currentMode=mode;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active',b.textContent===MLABELS[mode]));
+  // Mode label update only — full recalc requires Pyodide on index page
+  renderTrinitySentences(n.report);
+}
+
+function renderTrinity(r){
+  const cards=document.getElementById('trinity-cards');
+  const fields=[{k:'body',l:'BODY · TROPICAL',c:'body'},{k:'mind',l:'MIND · SIDEREAL',c:'mind'},{k:'heart',l:'HEART · DRACONIC',c:'heart'},{k:'shadow',l:'SHADOW · INVERSE',c:'shadow'}];
+  cards.innerHTML=fields.map(f=>{
+    const d=r[f.k];if(!d)return'';
+    const lat=r.sentences?.[f.k]?.lattice_pos;
+    return`<div class="tc ${f.c} fade-in">
+      <div class="tc-label">${f.l}</div>
+      <div class="tc-gate">G${d.gate}</div>
+      <div class="tc-name">${d.name||'—'}</div>
+      <div class="tc-system">${d.formatted||''}</div>
+      <div class="tc-coord">L${d.line} · C${d.color} · T${d.tone} · B${d.base}</div>
+      ${lat!=null?`<div class="tc-lattice">◈ ${lat.toLocaleString()}</div>`:''}
+    </div>`;
+  }).join('');
+  const c=r.coherence;
+  const cg=document.getElementById('coh-grid');
+  if(c){
+    const ci=[{l:'MIND ↔ BODY',v:Math.round((c.mind_body??0)*100)},{l:'BODY ↔ HEART',v:Math.round((c.body_heart??0)*100)},{l:'HEART ↔ MIND',v:Math.round((c.heart_mind??0)*100)},{l:'OVERALL',v:Math.round((c.overall??0)*100)}];
+    cg.innerHTML=ci.map(x=>`<div class="coh-card"><div class="coh-label">${x.l}</div><div class="coh-val">${x.v}%</div><div class="coh-track"><div class="coh-fill" style="width:${x.v}%"></div></div></div>`).join('');
+  }
+  renderTrinitySentences(r);
+}
+
+function renderTrinitySentences(r){
+  const el=document.getElementById('trinity-sentences');
+  const s=r.sentences;
+  if(!s){el.innerHTML='<div style="color:var(--muted);font-size:12px">Recalculate node to generate sentences.</div>';return;}
+  const fields=[{k:'body',c:'body',l:'BODY · TROPICAL'},{k:'mind',c:'mind',l:'MIND · SIDEREAL'},{k:'heart',c:'heart',l:'HEART · DRACONIC'}];
+  el.innerHTML=fields.map(f=>{
+    const sd=s[f.k];if(!sd||sd.error)return`<div class="soul-slap-block"><div class="ss-field-tag ${f.c}">${f.l}</div><div class="ss-text" style="color:var(--muted)">—</div></div>`;
+    const gnum=r[f.k]?.gate||'?';
+    return`<div class="soul-slap-block fade-in">
+      <div class="ss-field-tag ${f.c}">${f.l} · ${sd.keynote||''} · G${gnum} · ${MLABELS[currentMode]||'Wake'}</div>
+      <div class="ss-text">${sd.soul_slap||sd.surface||'—'}</div>
+      <div class="ss-path">
+        <span class="path-item path-shadow">↓ ${sd.shadow||'—'}</span><span class="path-arrow">→</span>
+        <span class="path-item path-gift">◎ ${sd.gift||'—'}</span><span class="path-arrow">→</span>
+        <span class="path-item path-siddhi">✦ ${sd.siddhi||'—'}</span>
+      </div>
+      <div class="ss-commentary">${sd.commentary||''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderSentences(r){
+  const el=document.getElementById('all-sentences-list');
+  const all=r.all_sentences;
+  if(!all||!Object.keys(all).length){el.innerHTML='<div style="color:var(--muted);font-size:12px">Recalculate node to generate full sentence matrix.</div>';return;}
+  const sc={tropical:'var(--body-col)',sidereal:'var(--mind-col)',draconic:'var(--heart-col)'};
+  const sl={tropical:'TROPICAL · BODY',sidereal:'SIDEREAL · MIND',draconic:'DRACONIC · HEART'};
+  el.innerHTML=Object.entries(all).map(([planet,systems])=>{
+    const lats=Object.values(systems).map(s=>s.lattice_pos).filter(Boolean).join(' · ');
+    const rows=Object.entries(systems).map(([sys,sd])=>{
+      if(sd.error)return'';
+      return`<div class="sent-sys">
+        <div class="sent-sys-tag" style="color:${sc[sys]}">${sl[sys]} · LATTICE ${(sd.lattice_pos||0).toLocaleString()}</div>
+        <div style="font-family:var(--font-m);font-size:8px;color:var(--muted);margin-bottom:6px">${sd.gate_name||''} · ${sd.dimension?.keynote||''} · ${sd.base_name||''}</div>
+        <div class="sent-soul">${sd.soul_slap||'—'}</div>
+        <div class="sent-path">
+          <span class="path-item path-shadow">↓ ${sd.shadow||'—'}</span><span class="path-arrow">→</span>
+          <span class="path-item path-gift">◎ ${sd.gift||'—'}</span><span class="path-arrow">→</span>
+          <span class="path-item path-siddhi">✦ ${sd.siddhi||'—'}</span>
+        </div>
+      </div>`;
+    }).join('');
+    return`<div class="sent-planet-block">
+      <div class="sent-planet-head" onclick="this.nextElementSibling.classList.toggle('open')">
+        <span class="sent-planet-name">◯ ${planet}</span><span class="sent-planet-lattice">${lats}</span>
+      </div>
+      <div class="sent-planet-body">${rows}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderNine(r){
+  const el=document.getElementById('nine-grid');
+  const nf=r.nine_fields;
+  if(!nf){el.innerHTML='<div style="color:var(--muted)">9-body data not available.</div>';return;}
+  const order=['Mind','Heart','Body','Soul','Spirit','Shadow','Higher','Lower','Core'];
+  el.innerHTML=order.map(name=>{
+    const d=nf[name];if(!d)return'';
+    const col=BCOLS[name]||'var(--signal)';
+    return`<div class="nb-card"><div class="nb-bar" style="background:${col}"></div>
+      <div class="nb-name">${name.toUpperCase()}</div>
+      <div class="nb-amp" style="color:${col}">${d.amplitude||0}%</div>
+      <div class="nb-gate">G${d.gate} · L${d.line} · ${d.system||''}</div>
+      <div class="nb-center">${d.center}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderPlanets(r){
+  const tb=document.getElementById('planet-tbody');
+  const pa=r.planet_analyses;
+  if(!pa){tb.innerHTML='<tr><td colspan="6" style="color:var(--muted)">Data not available.</td></tr>';return;}
+  tb.innerHTML=Object.entries(pa).map(([name,d])=>`
+    <tr>
+      <td class="p-name">${name}</td>
+      <td>G${d.gate_tropical} <span style="color:var(--muted)">${d.tropical_fmt||''}</span></td>
+      <td style="color:var(--mind-col)">G${d.gate_sidereal} <span style="color:var(--muted)">${d.sidereal_fmt||''}</span></td>
+      <td style="color:var(--heart-col)">G${d.gate_draconic} <span style="color:var(--muted)">${d.draconic_fmt||''}</span></td>
+      <td style="color:var(--muted)">${d.spread}°</td>
+      <td><span class="p-lvl ${d.level}">${d.level}</span></td>
+    </tr>`).join('');
+}
+
+function renderPenta(r){
+  const p=r.penta;if(!p)return;
+  document.getElementById('penta-pos').textContent=p.pos||'—';
+  document.getElementById('penta-name').textContent=PNAMES[p.pos]||'—';
+  document.getElementById('penta-desc').textContent=PDESCS[p.pos]||'—';
+  const w=document.getElementById('penta-wheel');
+  w.innerHTML=[1,2,3,4,5].map(i=>`<div style="padding:12px;background:${i===p.pos?'var(--gate)':'var(--deep)'};border:1px solid ${i===p.pos?'var(--signal)':'var(--rim)'};text-align:center">
+    <div style="font-family:var(--font-d);font-size:24px;color:${i===p.pos?'var(--bright)':'var(--muted)'}">${i}</div>
+    <div style="font-family:var(--font-m);font-size:8px;color:${i===p.pos?'var(--gold)':'var(--dim)'};margin-top:4px;letter-spacing:.15em">${PNAMES[i]}</div>
+  </div>`).join('');
+  document.getElementById('penta-sentence').textContent=r.sentence||node.sentence||'—';
+}
+</script>
+</body>
+</html>

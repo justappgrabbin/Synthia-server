@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YOU·N·I·VERSE — Profile</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.page { padding:48px 0 60px; }
+.inner { max-width:680px; margin:0 auto; padding:0 20px; }
+
+/* HEADER */
+.prof-header {
+  padding:28px 20px 20px;
+  border-bottom:1px solid var(--rim);
+  background:var(--deep);
+  display:flex; align-items:center; gap:20px;
+}
+
+.prof-hex { flex-shrink:0; }
+
+.prof-info { flex:1; }
+.prof-name  { font-family:var(--font-display); font-size:28px; letter-spacing:0.04em; }
+.prof-addr  { font-family:var(--font-mono); font-size:9px; color:var(--gold); letter-spacing:0.1em; word-break:break-all; margin-top:4px; }
+.prof-since { font-family:var(--font-mono); font-size:9px; color:var(--muted); margin-top:4px; }
+
+/* SECTION */
+.prof-section {
+  padding:24px 20px;
+  border-bottom:1px solid var(--rim);
+}
+
+.prof-section:last-child { border-bottom:none; }
+
+.ps-title {
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:16px;
+}
+
+/* TRINITY */
+.trinity-cards {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:2px;
+  margin-bottom:12px;
+}
+
+.tc-card {
+  background:var(--field);
+  padding:16px 12px;
+  border-top:2px solid;
+}
+.tc-card.tc-body  { border-color:var(--body-col); }
+.tc-card.tc-mind  { border-color:var(--mind-col); }
+.tc-card.tc-heart { border-color:var(--heart-col); }
+
+.tc-sys   { font-family:var(--font-mono); font-size:8px; color:var(--muted); letter-spacing:0.15em; margin-bottom:6px; }
+.tc-gnum  { font-family:var(--font-display); font-size:28px; line-height:1; }
+.tc-body  .tc-gnum { color:var(--body-col); }
+.tc-mind  .tc-gnum { color:var(--mind-col); }
+.tc-heart .tc-gnum { color:var(--heart-col); }
+.tc-gname { font-size:11px; color:var(--muted); margin:2px 0; }
+.tc-deg   { font-family:var(--font-mono); font-size:9px; color:var(--dim); }
+.tc-lbt   { font-family:var(--font-mono); font-size:8px; color:var(--gold); margin-top:6px; }
+
+/* CI VECTOR */
+.ci-visual {
+  display:flex; gap:1px; flex-wrap:wrap;
+  margin:12px 0;
+}
+
+.ci-bar-wrap { display:flex; flex-direction:column; align-items:center; flex:1; min-width:6px; }
+.ci-bar-track { width:100%; background:var(--rim); position:relative; height:40px; }
+.ci-bar-fill  { position:absolute; bottom:0; left:0; right:0; transition:height 0.8s ease; }
+.ci-bar-idx   { font-family:var(--font-mono); font-size:5px; color:var(--dim); margin-top:2px; }
+
+/* PENTA */
+.penta-row {
+  display:flex; align-items:center; gap:16px;
+}
+.my-penta-pos {
+  font-family:var(--font-display);
+  font-size:64px;
+  color:var(--signal);
+  line-height:1;
+  flex-shrink:0;
+}
+.penta-info { }
+.penta-pos-name { font-family:var(--font-display); font-size:20px; letter-spacing:0.06em; margin-bottom:6px; }
+.penta-pos-desc { font-size:13px; color:var(--muted); line-height:1.5; }
+
+/* SENTENCE */
+.sentence-card {
+  background:var(--deep);
+  border:1px solid var(--rim);
+  padding:24px;
+  position:relative;
+  overflow:hidden;
+}
+
+.sentence-card::before {
+  content:'"';
+  position:absolute; top:4px; left:12px;
+  font-size:60px; color:var(--gold); opacity:0.15;
+  font-family:Georgia,serif; line-height:1;
+}
+
+.sentence-text {
+  font-size:16px; line-height:1.7;
+  font-style:italic; font-weight:300;
+  color:var(--arc);
+}
+
+/* EDIT SECTION */
+.edit-section {
+  padding:20px;
+  background:var(--deep);
+  border-top:1px solid var(--rim);
+  margin-top:24px;
+}
+
+.edit-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:12px;
+  margin:16px 0;
+}
+
+.save-btn {
+  padding:10px 24px;
+  background:linear-gradient(135deg,var(--pulse),#3a1a60);
+  border:none; color:var(--arc);
+  font-family:var(--font-display); font-size:16px;
+  letter-spacing:0.1em; cursor:pointer;
+  transition:all 0.2s;
+}
+.save-btn:hover { transform:translateY(-1px); }
+
+.reset-btn {
+  padding:10px 24px;
+  background:transparent;
+  border:1px solid var(--warn);
+  color:var(--warn);
+  font-family:var(--font-mono); font-size:10px;
+  letter-spacing:0.1em; cursor:pointer; margin-left:8px;
+}
+
+/* MESH STATUS */
+.mesh-card {
+  background:var(--field);
+  border:1px solid var(--rim);
+  padding:16px;
+  display:flex; gap:12px; align-items:center;
+}
+.mc-dot {
+  width:10px; height:10px; border-radius:50%;
+  flex-shrink:0;
+}
+.mc-info { flex:1; }
+.mc-id   { font-family:var(--font-mono); font-size:10px; color:var(--gold); word-break:break-all; }
+.mc-stat { font-size:12px; color:var(--muted); margin-top:2px; }
+
+.copy-id-btn {
+  padding:6px 12px; background:var(--gate);
+  border:1px solid var(--dim); color:var(--muted);
+  font-family:var(--font-mono); font-size:8px;
+  cursor:pointer; flex-shrink:0;
+}
+
+@media(max-width:600px){
+  .trinity-cards { grid-template-columns:1fr; }
+  .edit-grid { grid-template-columns:1fr; }
+  .prof-header { flex-direction:column; align-items:flex-start; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="prof-header" id="prof-header">
+    <div class="prof-hex">
+      <svg width="56" height="56" viewBox="0 0 56 56" id="hex-svg">
+        <polygon points="28,4 52,16 52,40 28,52 4,40 4,16" fill="#2e2050" stroke="#6b3fa0" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <div class="prof-info">
+      <div class="prof-name" id="prof-name">—</div>
+      <div class="prof-addr" id="prof-addr">—</div>
+      <div class="prof-since" id="prof-since">—</div>
+    </div>
+  </div>
+
+  <div style="max-width:680px; margin:0 auto; padding:0">
+
+    <!-- TRINITY -->
+    <div class="prof-section">
+      <div class="ps-title">
+        <div class="tag">◈ TRINITY COORDINATES</div>
+      </div>
+      <div class="trinity-cards" id="trinity-cards">
+        <div style="padding:20px;color:var(--muted);grid-column:1/-1">No node data. <a href="index.html" style="color:var(--signal)">Enter your birth data →</a></div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap" id="coh-bars"></div>
+    </div>
+
+    <!-- SENTENCE -->
+    <div class="prof-section">
+      <div class="ps-title">
+        <div class="tag">◈ CONSCIOUSNESS SENTENCE</div>
+      </div>
+      <div class="sentence-card">
+        <div class="sentence-text" id="sentence-out">—</div>
+      </div>
+    </div>
+
+    <!-- CI VECTOR -->
+    <div class="prof-section">
+      <div class="ps-title">
+        <div class="tag">◈ CI VECTOR (32-DIMENSIONAL)</div>
+      </div>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:12px">Your consciousness index vector — a 32-dimensional normalized representation of your field state. This is what the network uses to calculate resonance between nodes.</p>
+      <div class="ci-visual" id="ci-visual"></div>
+      <div style="font-family:var(--font-mono); font-size:9px; color:var(--muted); margin-top:8px; word-break:break-all" id="ci-text">—</div>
+    </div>
+
+    <!-- PENTA -->
+    <div class="prof-section">
+      <div class="ps-title">
+        <div class="tag">◈ PENTA POSITION</div>
+      </div>
+      <div class="penta-row" id="penta-display">
+        <div style="color:var(--muted)">—</div>
+      </div>
+    </div>
+
+    <!-- P2P MESH STATUS -->
+    <div class="prof-section">
+      <div class="ps-title">
+        <div class="tag">◈ P2P MESH STATUS</div>
+      </div>
+      <div class="mesh-card" id="mesh-card">
+        <div class="mc-dot" style="background:var(--muted);" id="mc-dot"></div>
+        <div class="mc-info">
+          <div class="mc-id" id="mc-id">Initializing…</div>
+          <div class="mc-stat" id="mc-stat">Connecting to mesh…</div>
+        </div>
+        <button class="copy-id-btn" onclick="copyId()">COPY ID</button>
+      </div>
+      <p style="font-size:11px; color:var(--muted); margin-top:10px;">Your PeerID is derived from your consciousness coordinates — the same person always gets the same ID. Share it so others can connect directly to your node, browser-to-browser, no server required.</p>
+    </div>
+
+    <!-- EDIT -->
+    <div class="prof-section">
+      <div class="ps-title">
+        <div class="tag">◈ UPDATE YOUR NODE</div>
+      </div>
+      <div class="edit-grid">
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" id="e-name" maxlength="40">
+        </div>
+        <div class="form-group">
+          <label>Birth Date</label>
+          <input type="date" id="e-date">
+        </div>
+        <div class="form-group">
+          <label>Birth Time</label>
+          <input type="time" id="e-time">
+        </div>
+      </div>
+      <button class="save-btn" onclick="saveChanges()">RECALCULATE</button>
+      <button class="reset-btn" onclick="resetNode()">RESET NODE</button>
+    </div>
+
+  </div>
+</div>
+
+<script src="mesh.js"></script>
+<script>
+document.body.insertAdjacentHTML('afterbegin', YN.renderNav('profile'));
+
+const PENTA_INFO = [
+  null,
+  { name:'FOUNDATION', desc:'You hold the physical structure. Security, grounding, material stability. The Penta cannot stand without this position functioning. You are what others stand on.' },
+  { name:'CONNECTOR',  desc:'You bridge what otherwise wouldn\'t touch. Relational flow, translation between field types. Often invisible but structurally essential — the membrane.' },
+  { name:'PROVIDER',   desc:'You generate the resources — material, energetic, creative — that the Penta runs on. The output engine. Sacral and Solar Plexus dominant.' },
+  { name:'DIRECTOR',   desc:'You hold the vision and set direction. Not necessarily the loudest — the one whose clarity others orient around. Head and Ajna dominant.' },
+  { name:'TRANSMITTER',desc:'You project the Penta\'s field outward. You carry the signal to the larger network. Where the Penta touches the world.' }
+];
+
+let _node = null;
+
+function init(){
+  _node = YN.loadNode();
+  if(!_node) return;
+
+  renderHeader();
+  renderTrinity();
+  renderSentence();
+  renderCI();
+  renderPenta();
+
+  // Pre-fill edit form
+  document.getElementById('e-name').value = _node.name || '';
+  document.getElementById('e-date').value = _node.birthDate || '';
+  document.getElementById('e-time').value = _node.birthTime || '';
+
+  // Mesh
+  YN.initMesh(id=>{
+    document.getElementById('mesh-status').className = 'status-dot online';
+    document.getElementById('mc-dot').style.background = 'var(--alive)';
+    document.getElementById('mc-dot').style.boxShadow  = '0 0 8px var(--alive)';
+    document.getElementById('mc-id').textContent   = id;
+    document.getElementById('mc-stat').textContent = `Online · ${Object.keys(YN.getPeers()).length} known nodes`;
+  });
+
+  YN.on('peers:updated', ()=>{
+    document.getElementById('mc-stat').textContent = `Online · ${Object.keys(YN.getPeers()).length} known nodes`;
+  });
+}
+
+function renderHeader(){
+  // Hex with gate colors
+  const svg = document.getElementById('hex-svg');
+  const g = _node.trinity.body.gate;
+  const col = `hsl(${(g/64)*280+200},60%,45%)`;
+  svg.innerHTML = `<polygon points="28,4 52,16 52,40 28,52 4,40 4,16" fill="#1e1436" stroke="${col}" stroke-width="2"/>
+    <text x="28" y="25" text-anchor="middle" fill="${col}" font-family="'Syne',sans-serif" font-size="10" font-weight="700">G${g}</text>
+    <text x="28" y="38" text-anchor="middle" fill="#6a5a88" font-family="monospace" font-size="7">${_node.penta?.name||''}</text>`;
+
+  document.getElementById('prof-name').textContent  = _node.name || 'Unknown';
+  document.getElementById('prof-addr').textContent  = _node.address;
+  document.getElementById('prof-since').textContent =
+    'Node created ' + new Date(_node.created).toLocaleDateString();
+}
+
+function renderTrinity(){
+  const t = _node.trinity;
+  const cards = document.getElementById('trinity-cards');
+  cards.innerHTML = [
+    { k:'body',  sys:'BODY · TROPICAL', cls:'tc-body' },
+    { k:'mind',  sys:'MIND · SIDEREAL', cls:'tc-mind' },
+    { k:'heart', sys:'HEART · DRACONIC',cls:'tc-heart' }
+  ].map(f=>`<div class="tc-card ${f.cls}">
+    <div class="tc-sys">${f.sys}</div>
+    <div class="tc-gnum">G${t[f.k].gate}</div>
+    <div class="tc-gname">${t[f.k].name}</div>
+    <div class="tc-deg">${YN.formatDeg(t[f.k].deg)}</div>
+    <div class="tc-lbt">L${t[f.k].line} · Base ${t[f.k].base} · ${YN.VOICES[t[f.k].base-1]}</div>
+  </div>`).join('');
+
+  // Coherence bars
+  const cb = document.getElementById('coh-bars');
+  const c  = (a,b)=>{ const d=Math.abs(a-b)%360; const s=d>180?360-d:d; return Math.max(0,(100-(s/180)*100)).toFixed(0); };
+  cb.innerHTML = [
+    { label:'MIND↔BODY', val:c(t.mind.deg,t.body.deg) },
+    { label:'BODY↔HEART',val:c(t.body.deg,t.heart.deg) },
+    { label:'HEART↔MIND',val:c(t.heart.deg,t.mind.deg) },
+    { label:'OVERALL',   val:t.coherence.toFixed(0) }
+  ].map(x=>`<div style="flex:1; min-width:120px">
+    <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);letter-spacing:0.15em;margin-bottom:4px">${x.label}</div>
+    <div style="font-family:var(--font-display);font-size:22px;color:var(--bright);line-height:1">${x.val}%</div>
+    <div class="coh-track" style="margin-top:4px"><div class="coh-fill" style="width:${x.val}%"></div></div>
+  </div>`).join('');
+}
+
+function renderSentence(){
+  document.getElementById('sentence-out').textContent = _node.sentence;
+}
+
+function renderCI(){
+  const ci = _node.trinity.ci;
+  if(!ci||!ci.length) return;
+  const visual = document.getElementById('ci-visual');
+  visual.innerHTML = ci.map((v,i)=>{
+    const pct = Math.round((v+1)/2*100);
+    const col = v>0 ? 'var(--signal)' : 'var(--body-col)';
+    return `<div class="ci-bar-wrap" style="max-width:${100/32}%">
+      <div class="ci-bar-track">
+        <div class="ci-bar-fill" style="height:${pct}%;background:${col};opacity:0.7"></div>
+      </div>
+      <div class="ci-bar-idx">${i+1}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('ci-text').textContent =
+    '[' + ci.map(v=>v.toFixed(3)).join(', ') + ']';
+}
+
+function renderPenta(){
+  const p = _node.penta;
+  if(!p) return;
+  const info = PENTA_INFO[p.pos];
+  document.getElementById('penta-display').innerHTML = `
+    <div class="my-penta-pos">${p.pos}</div>
+    <div class="penta-info">
+      <div class="penta-pos-name">${info.name}</div>
+      <div class="penta-pos-desc">${info.desc}</div>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--alive);margin-top:8px">◈ YOUR PENTA POSITION</div>
+    </div>`;
+}
+
+function saveChanges(){
+  const name = document.getElementById('e-name').value.trim();
+  const date = document.getElementById('e-date').value;
+  const time = document.getElementById('e-time').value || '12:00';
+  if(!date) return;
+
+  const trinity  = YN.calcTrinity(date, time);
+  const penta    = YN.calcPentaPos(trinity.body.gate, trinity.mind.gate, trinity.heart.gate);
+  const sentence = YN.buildSentence(trinity);
+  const address  = YN.nodeAddress(trinity);
+
+  _node = { ..._node, name: name||_node.name, birthDate:date, birthTime:time,
+             trinity, penta, sentence, address };
+  YN.saveNode(_node);
+  init();
+}
+
+function resetNode(){
+  if(confirm('Remove your node from this device?')){
+    localStorage.removeItem('yunv_node');
+    localStorage.removeItem('yunv_peers');
+    window.location.href='index.html';
+  }
+}
+
+function copyId(){
+  const id = document.getElementById('mc-id').textContent;
+  navigator.clipboard.writeText(id).catch(()=>{});
+  const btn=document.querySelector('.copy-id-btn');
+  btn.textContent='COPIED'; setTimeout(()=>btn.textContent='COPY ID',2000);
+}
+
+init();
+</script>
+</body>
+</html>

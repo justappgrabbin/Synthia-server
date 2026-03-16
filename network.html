@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YOU·N·I·VERSE — Network</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.page { height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+/* TOP BAR */
+.net-bar {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--rim);
+  flex-shrink:0;
+  background:var(--deep);
+}
+
+.net-stat {
+  display:flex; flex-direction:column;
+  font-family:var(--font-mono);
+}
+.ns-val   { font-size:18px; color:var(--bright); line-height:1; }
+.ns-label { font-size:8px;  color:var(--muted); letter-spacing:0.15em; }
+
+.net-bar-sep { width:1px; height:32px; background:var(--rim); }
+
+.invite-btn {
+  margin-left:auto;
+  padding:7px 14px;
+  background:var(--gate);
+  border:1px solid var(--signal);
+  color:var(--signal);
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:0.15em;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.invite-btn:hover { background:var(--pulse); color:var(--arc); }
+
+/* CANVAS */
+#graph-wrap {
+  flex:1;
+  position:relative;
+  overflow:hidden;
+}
+
+#graph-canvas {
+  width:100%;
+  height:100%;
+}
+
+/* NODE TOOLTIP */
+#tooltip {
+  position:absolute;
+  background:var(--deep);
+  border:1px solid var(--rim);
+  padding:14px 16px;
+  min-width:200px;
+  max-width:260px;
+  pointer-events:none;
+  display:none;
+  z-index:50;
+  animation:fadeUp 0.15s ease;
+}
+
+.tt-name  { font-family:var(--font-display); font-size:16px; margin-bottom:4px; }
+.tt-addr  { font-family:var(--font-mono); font-size:8px; color:var(--muted); margin-bottom:8px; word-break:break-all; }
+.tt-tri   { display:flex; gap:6px; margin-bottom:8px; }
+.tt-field { text-align:center; flex:1; }
+.tt-fl    { font-family:var(--font-mono); font-size:8px; color:var(--muted); }
+.tt-fg    { font-family:var(--font-display); font-size:14px; }
+.tf-body  { color:var(--body-col); }
+.tf-mind  { color:var(--mind-col); }
+.tf-heart { color:var(--heart-col); }
+.tt-res   { font-family:var(--font-mono); font-size:10px; margin-bottom:8px; }
+.tt-res span { color:var(--alive); }
+.tt-btn   {
+  width:100%; padding:7px;
+  background:linear-gradient(135deg,var(--pulse),#3a1a60);
+  border:none; color:var(--arc);
+  font-family:var(--font-mono); font-size:9px;
+  letter-spacing:0.15em; cursor:pointer; pointer-events:all;
+}
+
+/* SIDE PANEL */
+#side-panel {
+  position:absolute; top:0; right:0; bottom:0;
+  width:280px;
+  background:rgba(10,6,18,0.95);
+  border-left:1px solid var(--rim);
+  transform:translateX(100%);
+  transition:transform 0.3s ease;
+  overflow-y:auto;
+  z-index:40;
+  display:flex; flex-direction:column;
+}
+
+#side-panel.open { transform:translateX(0); }
+
+.sp-header {
+  padding:16px;
+  border-bottom:1px solid var(--rim);
+  display:flex; align-items:center; justify-content:space-between;
+}
+
+.sp-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; }
+.sp-body  { padding:16px; flex:1; }
+
+.compat-score {
+  font-family:var(--font-display);
+  font-size:52px;
+  line-height:1;
+  text-align:center;
+  margin:16px 0;
+}
+
+.field-compare {
+  display:flex; flex-direction:column; gap:6px;
+  margin:16px 0;
+}
+
+.fc-row {
+  display:grid; grid-template-columns:1fr 50px 1fr;
+  gap:4px; align-items:center;
+}
+.fc-val { font-family:var(--font-mono); font-size:9px; text-align:center; }
+.fc-bar-wrap { position:relative; height:2px; background:var(--rim); }
+.fc-my  { position:absolute; left:0; top:0; height:100%; }
+.fc-them{ position:absolute; right:0; top:0; height:100%; }
+
+.connect-btn {
+  width:100%; padding:12px;
+  background:linear-gradient(135deg,var(--pulse),#3a1a60);
+  border:none; color:var(--arc);
+  font-family:var(--font-display); font-size:16px;
+  letter-spacing:0.1em; cursor:pointer; margin-top:16px;
+}
+
+/* INVITE OVERLAY */
+#invite-overlay {
+  display:none;
+  position:fixed; inset:0;
+  background:rgba(5,3,8,0.9);
+  z-index:200;
+  align-items:center; justify-content:center;
+}
+#invite-overlay.open { display:flex; }
+
+.invite-card {
+  background:var(--deep);
+  border:1px solid var(--rim);
+  padding:28px;
+  max-width:400px;
+  width:90%;
+  text-align:center;
+}
+
+.invite-url {
+  background:var(--field);
+  border:1px solid var(--rim);
+  padding:10px 14px;
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--gold);
+  word-break:break-all;
+  margin:16px 0;
+  text-align:left;
+}
+
+.copy-btn {
+  padding:10px 24px;
+  background:var(--gate);
+  border:1px solid var(--signal);
+  color:var(--signal);
+  font-family:var(--font-mono);
+  font-size:10px; letter-spacing:0.15em;
+  cursor:pointer;
+  margin-right:8px;
+}
+
+.close-btn {
+  padding:10px 24px;
+  background:none; border:1px solid var(--muted);
+  color:var(--muted); font-family:var(--font-mono);
+  font-size:10px; cursor:pointer;
+}
+
+/* OFFLINE NODE DISPLAY */
+.offline-nodes {
+  padding:12px 16px;
+  border-top:1px solid var(--rim);
+  background:var(--deep);
+  flex-shrink:0;
+  max-height:140px;
+  overflow-y:auto;
+}
+
+.on-title { font-family:var(--font-mono); font-size:8px; color:var(--muted); letter-spacing:0.2em; margin-bottom:8px; }
+.on-list  { display:flex; flex-wrap:wrap; gap:6px; }
+.on-chip  {
+  padding:4px 10px;
+  background:var(--field);
+  border:1px solid var(--rim);
+  font-family:var(--font-mono); font-size:9px;
+  color:var(--muted); cursor:pointer;
+  transition:all 0.2s;
+}
+.on-chip:hover { border-color:var(--signal); color:var(--signal); }
+.on-chip.live  { border-color:var(--alive); color:var(--alive); }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- Top bar -->
+  <div class="net-bar">
+    <div class="net-stat"><div class="ns-val" id="stat-live">0</div><div class="ns-label">LIVE NODES</div></div>
+    <div class="net-bar-sep"></div>
+    <div class="net-stat"><div class="ns-val" id="stat-known">0</div><div class="ns-label">KNOWN NODES</div></div>
+    <div class="net-bar-sep"></div>
+    <div class="net-stat"><div class="ns-val" id="stat-edges">0</div><div class="ns-label">CONNECTIONS</div></div>
+    <button class="invite-btn" onclick="openInvite()">⊕ INVITE</button>
+  </div>
+
+  <!-- Graph -->
+  <div id="graph-wrap">
+    <canvas id="graph-canvas"></canvas>
+
+    <!-- Tooltip -->
+    <div id="tooltip">
+      <div class="tt-name" id="tt-name">—</div>
+      <div class="tt-addr" id="tt-addr">—</div>
+      <div class="tt-tri">
+        <div class="tt-field"><div class="tt-fl">BODY</div><div class="tt-fg tf-body" id="tt-body">—</div></div>
+        <div class="tt-field"><div class="tt-fl">MIND</div><div class="tt-fg tf-mind" id="tt-mind">—</div></div>
+        <div class="tt-field"><div class="tt-fl">HEART</div><div class="tt-fg tf-heart" id="tt-heart">—</div></div>
+      </div>
+      <div class="tt-res">Resonance: <span id="tt-res">—</span>%</div>
+      <button class="tt-btn" id="tt-btn" onclick="openSidePanel()">VIEW COMPATIBILITY →</button>
+    </div>
+
+    <!-- Side panel -->
+    <div id="side-panel">
+      <div class="sp-header">
+        <div class="tag">≋ RESONANCE FIELD</div>
+        <button class="sp-close" onclick="closeSidePanel()">✕</button>
+      </div>
+      <div class="sp-body" id="sp-body"></div>
+    </div>
+  </div>
+
+  <!-- Known/offline nodes -->
+  <div class="offline-nodes">
+    <div class="on-title">◈ ALL NODES IN YOUR FIELD</div>
+    <div class="on-list" id="all-nodes-list"></div>
+  </div>
+</div>
+
+<!-- Invite overlay -->
+<div id="invite-overlay">
+  <div class="invite-card">
+    <div class="tag" style="margin-bottom:12px">⊕ INVITE TO FIELD</div>
+    <h3 style="margin-bottom:8px; font-size:18px;">Share your node link</h3>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:0">Anyone who opens this link connects directly to you — browser to browser, no server.</p>
+    <div class="invite-url" id="invite-url">—</div>
+    <button class="copy-btn" onclick="copyInvite()">COPY LINK</button>
+    <button class="close-btn" onclick="closeInvite()">CLOSE</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="mesh.js"></script>
+<script>
+document.body.insertAdjacentHTML('afterbegin', YN.renderNav('network'));
+
+const canvas = document.getElementById('graph-canvas');
+const ctx    = canvas.getContext('2d');
+let W, H;
+let nodes = [], edges = [];
+let sim;    // D3 force simulation
+let hovered = null;
+let selectedNode = null;
+let _myNode = null;
+let animFrame;
+
+// ── INIT ─────────────────────────────────────────────
+function init(){
+  _myNode = YN.loadNode();
+  if(!_myNode){
+    // Show redirect prompt
+    ctx.fillStyle = '#6a5a88';
+    ctx.font = '14px Syne Mono, monospace';
+    ctx.fillText('Enter your birth data first →', 40, 60);
+    return;
+  }
+
+  resize();
+  window.addEventListener('resize', ()=>{ resize(); rebuild(); });
+
+  // Build initial graph from known peers + self
+  buildGraph();
+
+  // Init P2P
+  YN.initMesh(id=>{
+    document.getElementById('mesh-status').className = 'status-dot online';
+    updateStats();
+  });
+
+  YN.on('peers:updated', ()=>{ buildGraph(); updateStats(); });
+  YN.on('mesh:connected', ()=>{ buildGraph(); updateStats(); });
+  YN.on('mesh:disconnected', ()=>{ buildGraph(); updateStats(); });
+
+  // Mouse/touch events
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('click', onClick);
+  canvas.addEventListener('touchstart', onTouch, { passive:true });
+
+  // D3 sim
+  setupSim();
+  loop();
+}
+
+function resize(){
+  W = canvas.width  = canvas.offsetWidth;
+  H = canvas.height = canvas.offsetHeight;
+}
+
+function buildGraph(){
+  const peers   = YN.getPeers();
+  const online  = new Set(YN.getOnlinePeers());
+
+  // Self node
+  const selfId = _myNode.peerId || 'self';
+  nodes = [{ id: selfId, isSelf: true, data: {
+    name: _myNode.name,
+    trinity: _myNode.trinity,
+    penta: _myNode.penta,
+    address: _myNode.address,
+    online: true
+  }, x: W/2, y: H/2, vx:0, vy:0 }];
+
+  edges = [];
+
+  Object.entries(peers).forEach(([pid, pdata])=>{
+    if(pid === selfId) return;
+    const res = YN.calcResonance(_myNode.trinity.ci, pdata.ci);
+    nodes.push({
+      id: pid,
+      isSelf: false,
+      data: { ...pdata, online: online.has(pid) },
+      resonance: res,
+      x: W/2 + (Math.random()-0.5)*200,
+      y: H/2 + (Math.random()-0.5)*200,
+      vx:0, vy:0
+    });
+    if(res >= 40){
+      edges.push({ source: selfId, target: pid, weight: res });
+    }
+  });
+
+  // Also add online peers not yet in known
+  online.forEach(pid=>{
+    if(!nodes.find(n=>n.id===pid)){
+      nodes.push({
+        id:pid, isSelf:false,
+        data:{ name:'Unknown', online:true },
+        resonance:0,
+        x:W/2+(Math.random()-0.5)*200,
+        y:H/2+(Math.random()-0.5)*200,
+        vx:0,vy:0
+      });
+    }
+  });
+
+  updateStats();
+  updateNodeList();
+  if(sim) { sim.nodes(nodes); sim.force('link').links(edgeLinks()); sim.alpha(0.3).restart(); }
+}
+
+function edgeLinks(){
+  return edges.map(e=>({
+    source: nodes.find(n=>n.id===e.source)||nodes[0],
+    target: nodes.find(n=>n.id===e.target)||nodes[0],
+    weight: e.weight
+  }));
+}
+
+function setupSim(){
+  sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edgeLinks())
+      .id(d=>d.id)
+      .distance(d=>180*(1-d.weight/100)+40)
+      .strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide().radius(d=>d.isSelf?36:22))
+    .on('tick', ()=>{})
+    .alphaDecay(0.02);
+}
+
+function rebuild(){
+  if(sim){ sim.stop(); }
+  setupSim();
+}
+
+// ── DRAW ─────────────────────────────────────────────
+function loop(){
+  draw();
+  animFrame = requestAnimationFrame(loop);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // Draw edges
+  edges.forEach(e=>{
+    const s = nodes.find(n=>n.id===e.source);
+    const t = nodes.find(n=>n.id===e.target);
+    if(!s||!t) return;
+    const alpha = 0.1 + (e.weight/100)*0.5;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(t.x, t.y);
+    const grad = ctx.createLinearGradient(s.x,s.y,t.x,t.y);
+    grad.addColorStop(0, `rgba(107,63,160,${alpha})`);
+    grad.addColorStop(1, `rgba(61,214,140,${alpha*0.6})`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 0.5 + (e.weight/100)*2;
+    ctx.stroke();
+  });
+
+  // Draw nodes
+  nodes.forEach(n=>{
+    const isHov = hovered === n;
+    const isSel = selectedNode === n;
+
+    if(n.isSelf){
+      // Self — hexagon
+      drawHex(n.x, n.y, 22, '#6b3fa0', isHov||isSel);
+      ctx.fillStyle = '#c4a0ff';
+      ctx.font = `bold 9px Syne Mono, monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText('YOU', n.x, n.y-2);
+      ctx.font = `8px Syne Mono, monospace`;
+      ctx.fillStyle = '#9d6fe8';
+      ctx.fillText(`G${n.data.trinity?.body?.gate||'?'}`, n.x, n.y+8);
+    } else {
+      const res   = n.resonance || 0;
+      const r     = n.data.online ? 14 : 10;
+      const col   = resColor(res);
+      // Glow for online
+      if(n.data.online){
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r+8, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(61,214,140,0.06)`;
+        ctx.fill();
+      }
+      // Node circle
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, isHov||isSel ? r+3 : r, 0, Math.PI*2);
+      ctx.fillStyle = n.data.online ? col : `${col}44`;
+      ctx.fill();
+      ctx.strokeStyle = n.data.online ? '#3dd68c44' : col+'44';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Gate label
+      ctx.fillStyle = '#c4a0ff';
+      ctx.font = `8px Syne Mono, monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`G${n.data.trinity?.body?.gate||'?'}`, n.x, n.y+3);
+    }
+    // Name below
+    ctx.fillStyle = '#6a5a88';
+    ctx.font = `9px DM Sans, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText((n.data.name||'').slice(0,10), n.x, n.y+26);
+  });
+}
+
+function drawHex(cx,cy,r,col,glow){
+  if(glow){
+    ctx.beginPath();
+    for(let i=0;i<6;i++){ const a=i/6*Math.PI*2-Math.PI/6; i===0?ctx.moveTo(cx+r*1.5*Math.cos(a),cy+r*1.5*Math.sin(a)):ctx.lineTo(cx+r*1.5*Math.cos(a),cy+r*1.5*Math.sin(a)); }
+    ctx.closePath(); ctx.fillStyle='rgba(107,63,160,0.15)'; ctx.fill();
+  }
+  ctx.beginPath();
+  for(let i=0;i<6;i++){ const a=i/6*Math.PI*2-Math.PI/6; i===0?ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a)); }
+  ctx.closePath();
+  ctx.fillStyle = col;
+  ctx.fill();
+  ctx.strokeStyle = '#c4a0ff44';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function resColor(r){
+  if(r>=75) return '#3dd68c';
+  if(r>=55) return '#9d6fe8';
+  if(r>=40) return '#d4a843';
+  return '#6a5a88';
+}
+
+// ── INTERACTION ────────────────────────────────────
+function onMove(e){
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  hovered = nodes.find(n=>dist(n.x,n.y,mx,my)<(n.isSelf?26:18)) || null;
+  canvas.style.cursor = hovered ? 'pointer' : 'default';
+  if(hovered && !hovered.isSelf) showTooltip(hovered, mx, my);
+  else hideTooltip();
+}
+
+function onClick(e){
+  if(hovered && !hovered.isSelf){ selectedNode=hovered; openSidePanel(); }
+  else if(!hovered){ closeSidePanel(); selectedNode=null; }
+}
+
+function onTouch(e){
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.touches[0].clientX-rect.left, my=e.touches[0].clientY-rect.top;
+  hovered = nodes.find(n=>dist(n.x,n.y,mx,my)<30) || null;
+  if(hovered && !hovered.isSelf){ selectedNode=hovered; openSidePanel(); }
+}
+
+function dist(x1,y1,x2,y2){ return Math.sqrt((x1-x2)**2+(y1-y2)**2); }
+
+function showTooltip(node, mx, my){
+  const tt = document.getElementById('tooltip');
+  const d  = node.data;
+  document.getElementById('tt-name').textContent  = d.name||'Unknown';
+  document.getElementById('tt-addr').textContent  = d.address||d.peerId||'';
+  document.getElementById('tt-body').textContent  = d.trinity ? `G${d.trinity.body.gate}` : '—';
+  document.getElementById('tt-mind').textContent  = d.trinity ? `G${d.trinity.mind.gate}` : '—';
+  document.getElementById('tt-heart').textContent = d.trinity ? `G${d.trinity.heart.gate}` : '—';
+  document.getElementById('tt-res').textContent   = node.resonance||0;
+  // Position
+  const x = Math.min(mx+16, W-270), y = Math.min(my-10, H-160);
+  tt.style.left = x+'px'; tt.style.top = y+'px'; tt.style.display='block';
+}
+
+function hideTooltip(){ document.getElementById('tooltip').style.display='none'; }
+
+function openSidePanel(){
+  if(!selectedNode) return;
+  hideTooltip();
+  const sp = document.getElementById('side-panel');
+  sp.classList.add('open');
+  renderSidePanel(selectedNode);
+}
+
+function closeSidePanel(){ document.getElementById('side-panel').classList.remove('open'); }
+
+function renderSidePanel(node){
+  const body = document.getElementById('sp-body');
+  const d    = node.data;
+  const res  = node.resonance || 0;
+  const resLabel = res>=75?'DEEP RESONANCE':res>=55?'POSITIVE RESONANCE':res>=40?'NEUTRAL':' LOW SIGNAL';
+  const col  = resColor(res);
+  const myT  = _myNode?.trinity;
+  const theirT = d.trinity;
+
+  let html = `
+    <div style="text-align:center; margin-bottom:12px">
+      <div style="font-family:var(--font-display); font-size:18px; margin-bottom:4px">${d.name||'Unknown'}</div>
+      <div style="font-family:var(--font-mono); font-size:8px; color:var(--muted)">${d.online?'● LIVE':'◌ SEEN'} ${d.address||''}</div>
+    </div>
+    <div class="compat-score" style="color:${col}">${res}%</div>
+    <div style="font-family:var(--font-mono); font-size:9px; color:${col}; text-align:center; letter-spacing:0.2em; margin-bottom:16px">${resLabel}</div>
+  `;
+
+  if(myT && theirT){
+    html += `<div style="font-family:var(--font-mono); font-size:8px; color:var(--muted); margin-bottom:8px; letter-spacing:0.15em">FIELD COMPARISON</div>
+    <div class="field-compare">`;
+    [['body','BODY',myT.body.gate,theirT.body.gate,'var(--body-col)'],
+     ['mind','MIND',myT.mind.gate,theirT.mind.gate,'var(--mind-col)'],
+     ['heart','HEART',myT.heart.gate,theirT.heart.gate,'var(--heart-col)']
+    ].forEach(([k,l,mg,tg,c])=>{
+      html += `<div class="fc-row">
+        <div style="font-family:var(--font-mono);font-size:9px;text-align:right;color:${c}">G${mg}</div>
+        <div class="fc-val" style="color:var(--muted);font-size:7px">${l}</div>
+        <div style="font-family:var(--font-mono);font-size:9px;color:${c}">G${tg}</div>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // Penta compatibility
+    const myPos   = _myNode?.penta?.pos;
+    const theirPos = d.penta?.pos;
+    if(myPos && theirPos && myPos !== theirPos){
+      html += `<div style="margin:12px 0; padding:10px; background:var(--field); border:1px solid var(--rim)">
+        <div style="font-family:var(--font-mono);font-size:8px;color:var(--alive);margin-bottom:4px">◈ PENTA COMPATIBLE</div>
+        <div style="font-size:11px">You hold position <strong>${myPos}</strong>, they hold position <strong>${theirPos}</strong>. Together you activate two nodes of the same Penta field.</div>
+      </div>`;
+    }
+  }
+
+  html += `<button class="connect-btn" onclick="window.location.href='resonance.html?peer=${node.id}'">DEEP RESONANCE →</button>`;
+  body.innerHTML = html;
+}
+
+// ── INVITE ────────────────────────────────────────
+function openInvite(){
+  const link = YN.getInviteLink() || window.location.href;
+  document.getElementById('invite-url').textContent = link;
+  document.getElementById('invite-overlay').classList.add('open');
+}
+function closeInvite(){ document.getElementById('invite-overlay').classList.remove('open'); }
+function copyInvite(){
+  const url = document.getElementById('invite-url').textContent;
+  navigator.clipboard.writeText(url).then(()=>{
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'COPIED ✓';
+    setTimeout(()=>btn.textContent='COPY LINK', 2000);
+  });
+}
+
+// ── STATS ─────────────────────────────────────────
+function updateStats(){
+  document.getElementById('stat-live').textContent  = YN.getOnlinePeers().length;
+  document.getElementById('stat-known').textContent = Object.keys(YN.getPeers()).length;
+  document.getElementById('stat-edges').textContent = edges.length;
+}
+
+function updateNodeList(){
+  const list = document.getElementById('all-nodes-list');
+  const online = new Set(YN.getOnlinePeers());
+  const peers  = YN.getPeers();
+  list.innerHTML = Object.entries(peers).map(([pid,pdata])=>`
+    <div class="on-chip ${online.has(pid)?'live':''}"
+         onclick="selectPeer('${pid}')" title="${pdata.address||pid}">
+      ${(pdata.name||'Unknown').slice(0,12)} · G${pdata.trinity?.body?.gate||'?'}
+    </div>
+  `).join('') || '<div style="font-size:11px;color:var(--muted)">No nodes yet. Share your invite link to connect.</div>';
+}
+
+function selectPeer(pid){
+  const n = nodes.find(n=>n.id===pid);
+  if(n){ selectedNode=n; openSidePanel(); }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YOU·N·I·VERSE — Resonance</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.page { padding:48px 0 60px; }
+
+/* SCORE HERO */
+.res-hero {
+  background:var(--deep);
+  border-bottom:1px solid var(--rim);
+  padding:32px 20px;
+  text-align:center;
+}
+
+.res-names {
+  display:flex; align-items:center; justify-content:center; gap:16px;
+  margin-bottom:20px;
+}
+
+.rn-node { text-align:center; }
+.rn-name { font-family:var(--font-display); font-size:20px; letter-spacing:0.04em; }
+.rn-gate { font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-top:2px; }
+.rn-sep  { font-family:var(--font-mono); font-size:20px; color:var(--gate); }
+
+.big-score {
+  font-family:var(--font-display);
+  font-size:clamp(72px,18vw,120px);
+  line-height:1;
+  letter-spacing:-0.02em;
+}
+
+.score-label {
+  font-family:var(--font-mono);
+  font-size:10px;
+  letter-spacing:0.3em;
+  margin-top:4px;
+}
+
+.score-tag {
+  display:inline-block;
+  margin-top:12px;
+  padding:5px 16px;
+  border:1px solid;
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:0.2em;
+}
+
+/* COMPARISON SECTION */
+.comp-section {
+  padding:24px 20px;
+  border-bottom:1px solid var(--rim);
+}
+
+.comp-section h3 {
+  font-size:11px; font-family:var(--font-mono);
+  letter-spacing:0.2em; color:var(--muted); margin-bottom:16px;
+}
+
+/* FIELD MATRIX COMPARE */
+.field-matrix {
+  display:flex; flex-direction:column; gap:2px;
+}
+
+.fm-row {
+  display:grid;
+  grid-template-columns:1fr 80px 1fr;
+  gap:4px; align-items:center;
+}
+
+.fm-mine, .fm-them {
+  background:var(--field);
+  padding:10px 12px;
+}
+
+.fm-mine { text-align:right; }
+.fm-them { text-align:left; }
+
+.fm-gate { font-family:var(--font-display); font-size:18px; }
+.fm-name { font-size:10px; color:var(--muted); }
+.fm-base { font-family:var(--font-mono); font-size:8px; color:var(--gold); }
+
+.fm-mid {
+  display:flex; flex-direction:column; align-items:center;
+  padding:6px 0;
+}
+
+.fm-field-label {
+  font-family:var(--font-mono); font-size:7px;
+  letter-spacing:0.15em; color:var(--muted);
+  margin-bottom:4px;
+}
+
+.fm-compat-score {
+  font-family:var(--font-display); font-size:14px;
+}
+
+.fm-row.body-row .fm-compat-score { color:var(--body-col); }
+.fm-row.mind-row .fm-compat-score { color:var(--mind-col); }
+.fm-row.heart-row .fm-compat-score { color:var(--heart-col); }
+
+/* HARMONY / FRICTION */
+.hf-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:2px;
+  margin-top:12px;
+}
+
+.hf-card {
+  background:var(--field);
+  padding:14px;
+}
+
+.hf-title {
+  font-family:var(--font-mono); font-size:8px;
+  letter-spacing:0.2em; margin-bottom:8px;
+}
+
+.hf-card.harmony .hf-title { color:var(--alive); }
+.hf-card.friction .hf-title { color:var(--warn); }
+
+.hf-item {
+  font-size:11px; color:var(--muted);
+  padding:4px 0;
+  border-bottom:1px solid var(--rim);
+}
+
+.hf-item:last-child { border-bottom:none; }
+
+/* PENTA SYNC */
+.penta-sync {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:2px;
+}
+
+.ps-card {
+  background:var(--field);
+  padding:14px;
+  border-top:2px solid;
+}
+
+.ps-card.mine { border-color:var(--signal); }
+.ps-card.them { border-color:var(--gold); }
+
+.ps-role  { font-family:var(--font-display); font-size:16px; letter-spacing:0.06em; }
+.ps-pos   { font-family:var(--font-mono); font-size:9px; color:var(--muted); margin-bottom:6px; }
+.ps-desc  { font-size:11px; color:var(--muted); line-height:1.4; }
+
+/* GROUP POD */
+.pod-card {
+  background:var(--deep);
+  border:1px solid var(--signal);
+  padding:20px;
+  margin:16px 0;
+  position:relative;
+}
+
+.pod-card::before {
+  content:'◈ GROUP SIGNAL DETECTED';
+  position:absolute; top:-8px; left:16px;
+  background:var(--deep);
+  font-family:var(--font-mono); font-size:8px;
+  color:var(--signal); letter-spacing:0.2em;
+  padding:0 8px;
+}
+
+/* CONNECT BTN */
+.connect-area {
+  padding:24px 20px;
+  text-align:center;
+}
+
+.big-connect-btn {
+  width:100%; max-width:340px;
+  padding:16px;
+  background:linear-gradient(135deg,var(--pulse),#3a1a60);
+  border:none; color:var(--arc);
+  font-family:var(--font-display); font-size:20px;
+  letter-spacing:0.1em; cursor:pointer;
+  display:inline-block; text-decoration:none;
+  transition:all 0.3s;
+}
+.big-connect-btn:hover { transform:translateY(-2px); box-shadow:0 8px 30px #6b3fa044; }
+
+/* LOOKUP FORM */
+.lookup-form {
+  padding:32px 20px;
+  max-width:480px; margin:0 auto;
+  text-align:center;
+}
+
+.lf-input {
+  width:100%; margin:16px 0 12px;
+  background:var(--field);
+  border:1px solid var(--rim);
+  color:var(--text);
+  padding:12px 16px;
+  font-family:var(--font-mono); font-size:12px;
+  outline:none;
+}
+.lf-input:focus { border-color:var(--signal); }
+
+@media(max-width:600px){
+  .hf-grid { grid-template-columns:1fr; }
+  .penta-sync { grid-template-columns:1fr; }
+  .fm-row { grid-template-columns:1fr 60px 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="page" id="page">
+
+  <!-- State: no peer selected → show lookup -->
+  <div id="lookup-state">
+    <div class="lookup-form">
+      <div class="tag" style="margin-bottom:16px">≋ RESONANCE FIELD</div>
+      <h2 style="margin-bottom:8px">Compare Nodes</h2>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:0">Enter a PeerID or node address to see the resonance field between you.</p>
+      <input class="lf-input" id="peer-input" placeholder="yunv_xxxxxxxx or node address">
+      <button class="big-connect-btn" onclick="lookupAndCompare()" style="font-size:16px; padding:12px">CALCULATE RESONANCE</button>
+
+      <p style="font-size:11px; color:var(--muted); margin-top:20px">
+        Or <a href="network.html" style="color:var(--signal)">find someone in the network →</a>
+      </p>
+
+      <!-- Demo: self-comparison for exploration -->
+      <div style="margin-top:32px; padding-top:20px; border-top:1px solid var(--rim)">
+        <div class="tag" style="margin-bottom:12px">◈ TRY IT — COMPARE TWO BIRTH DATES</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; text-align:left">
+          <div class="form-group">
+            <label>Person A · Birth Date</label>
+            <input type="date" id="demo-a-date">
+          </div>
+          <div class="form-group">
+            <label>Person B · Birth Date</label>
+            <input type="date" id="demo-b-date">
+          </div>
+          <div class="form-group">
+            <label>Time A</label>
+            <input type="time" id="demo-a-time" value="12:00">
+          </div>
+          <div class="form-group">
+            <label>Time B</label>
+            <input type="time" id="demo-b-time" value="12:00">
+          </div>
+        </div>
+        <button class="big-connect-btn" onclick="demoCompare()" style="font-size:14px; padding:12px; margin-top:12px; width:100%; max-width:100%">COMPARE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- State: comparison result -->
+  <div id="result-state" style="display:none">
+    <!-- Hero score -->
+    <div class="res-hero">
+      <div class="res-names">
+        <div class="rn-node">
+          <div class="rn-name" id="name-a">—</div>
+          <div class="rn-gate" id="gates-a">G? · G? · G?</div>
+        </div>
+        <div class="rn-sep">≋</div>
+        <div class="rn-node">
+          <div class="rn-name" id="name-b">—</div>
+          <div class="rn-gate" id="gates-b">G? · G? · G?</div>
+        </div>
+      </div>
+      <div class="big-score" id="big-score" style="color:var(--signal)">—</div>
+      <div class="score-label">RESONANCE FIELD COHERENCE</div>
+      <div class="score-tag" id="score-tag" style="color:var(--signal); border-color:var(--signal)">—</div>
+    </div>
+
+    <!-- FIELD MATRIX -->
+    <div class="comp-section">
+      <h3>◈ TRINITY FIELD COMPARISON</h3>
+      <div class="field-matrix" id="field-matrix"></div>
+    </div>
+
+    <!-- HARMONY / FRICTION -->
+    <div class="comp-section">
+      <h3>◈ HARMONY & FRICTION ZONES</h3>
+      <div class="hf-grid" id="hf-grid"></div>
+    </div>
+
+    <!-- PENTA SYNC -->
+    <div class="comp-section">
+      <h3>◈ PENTA FIELD POSITIONS</h3>
+      <div class="penta-sync" id="penta-sync"></div>
+      <div id="pod-signal"></div>
+    </div>
+
+    <!-- SENTENCES -->
+    <div class="comp-section">
+      <h3>◈ CONSCIOUSNESS SENTENCES</h3>
+      <div id="sentences-compare"></div>
+    </div>
+
+    <!-- CONNECT -->
+    <div class="connect-area">
+      <button class="big-connect-btn" onclick="shareResonance()">⊕ SHARE THIS RESONANCE</button>
+      <div style="margin-top:12px">
+        <button onclick="resetResult()" style="background:none;border:none;color:var(--muted);font-family:var(--font-mono);font-size:9px;cursor:pointer;letter-spacing:0.15em">← COMPARE ANOTHER</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="mesh.js"></script>
+<script>
+document.body.insertAdjacentHTML('afterbegin', YN.renderNav('resonance'));
+
+const PENTA_NAMES = ['','Foundation','Connector','Provider','Director','Transmitter'];
+const PENTA_DESCS = ['',
+  'Holds the physical structure. Security and grounding.',
+  'Bridges positions — relational flow and translation.',
+  'Generates resources. The output engine.',
+  'Holds vision. The direction-setter.',
+  'Projects outward. Where the Penta touches the world.'
+];
+
+const _myNode = YN.loadNode();
+
+// Check URL params for peer
+window.addEventListener('load', ()=>{
+  const url = new URL(window.location.href);
+  const peer = url.searchParams.get('peer');
+  if(peer){
+    const peers = YN.getPeers();
+    if(peers[peer]) runComparison(_myNode, peers[peer], _myNode?.name||'You', peers[peer].name||'Them');
+  }
+  YN.initMesh(()=>{ document.getElementById('mesh-status').className='status-dot online'; });
+});
+
+function lookupAndCompare(){
+  const input = document.getElementById('peer-input').value.trim();
+  const peers = YN.getPeers();
+  const peer  = peers[input];
+  if(!peer){ alert('Node not found in your field. Try the network graph to find connected nodes.'); return; }
+  if(!_myNode){ alert('Enter your birth data first.'); return; }
+  runComparison(_myNode, peer, _myNode.name||'You', peer.name||'Them');
+}
+
+function demoCompare(){
+  const ad = document.getElementById('demo-a-date').value;
+  const bd = document.getElementById('demo-b-date').value;
+  const at = document.getElementById('demo-a-time').value||'12:00';
+  const bt = document.getElementById('demo-b-time').value||'12:00';
+  if(!ad||!bd){ alert('Enter both birth dates.'); return; }
+
+  const ta = YN.calcTrinity(ad,at);
+  const tb = YN.calcTrinity(bd,bt);
+  const pa = YN.calcPentaPos(ta.body.gate,ta.mind.gate,ta.heart.gate);
+  const pb = YN.calcPentaPos(tb.body.gate,tb.mind.gate,tb.heart.gate);
+
+  const nodeA = { name:'Person A', trinity:ta, penta:pa, sentence:YN.buildSentence(ta), address:YN.nodeAddress(ta) };
+  const nodeB = { name:'Person B', trinity:tb, penta:pb, sentence:YN.buildSentence(tb), address:YN.nodeAddress(tb) };
+
+  runComparison(nodeA, nodeB, 'Person A', 'Person B');
+}
+
+function runComparison(nodeA, nodeB, nameA, nameB){
+  if(!nodeA||!nodeB) return;
+
+  const ta = nodeA.trinity, tb = nodeB.trinity;
+  const res = YN.calcResonance(ta.ci, tb.ci);
+
+  // Show result state
+  document.getElementById('lookup-state').style.display='none';
+  document.getElementById('result-state').style.display='block';
+
+  // Hero
+  document.getElementById('name-a').textContent  = nameA;
+  document.getElementById('name-b').textContent  = nameB;
+  document.getElementById('gates-a').textContent = `G${ta.body.gate} · G${ta.mind.gate} · G${ta.heart.gate}`;
+  document.getElementById('gates-b').textContent = `G${tb.body.gate} · G${tb.mind.gate} · G${tb.heart.gate}`;
+
+  const col = res>=75?'var(--alive)':res>=55?'var(--signal)':res>=40?'var(--gold)':'var(--muted)';
+  const lab = res>=75?'DEEP RESONANCE':res>=55?'POSITIVE RESONANCE':res>=40?'NEUTRAL FIELD':'LOW SIGNAL';
+  document.getElementById('big-score').textContent  = res + '%';
+  document.getElementById('big-score').style.color  = col;
+  document.getElementById('score-tag').textContent  = lab;
+  document.getElementById('score-tag').style.color  = col;
+  document.getElementById('score-tag').style.borderColor = col;
+
+  // Field matrix
+  const fCoh = (a,b)=>{ const d=Math.abs(a-b)%360; const s=d>180?360-d:d; return Math.max(0,(100-(s/180)*100)).toFixed(0); };
+  document.getElementById('field-matrix').innerHTML = [
+    { k:'body',  label:'BODY',  cls:'body-row',  col:'var(--body-col)' },
+    { k:'mind',  label:'MIND',  cls:'mind-row',  col:'var(--mind-col)' },
+    { k:'heart', label:'HEART', cls:'heart-row', col:'var(--heart-col)' }
+  ].map(f=>{
+    const a=ta[f.k], b=tb[f.k];
+    const c=fCoh(a.deg,b.deg);
+    return `<div class="fm-row ${f.cls}">
+      <div class="fm-mine">
+        <div class="fm-gate" style="color:${f.col}">G${a.gate}</div>
+        <div class="fm-name">${a.name}</div>
+        <div class="fm-base">Base ${a.base} · L${a.line}</div>
+      </div>
+      <div class="fm-mid">
+        <div class="fm-field-label">${f.label}</div>
+        <div class="fm-compat-score">${c}%</div>
+        <div class="coh-track" style="width:60px; margin-top:4px">
+          <div class="coh-fill" style="width:${c}%"></div>
+        </div>
+      </div>
+      <div class="fm-them">
+        <div class="fm-gate" style="color:${f.col}">G${b.gate}</div>
+        <div class="fm-name">${b.name}</div>
+        <div class="fm-base">Base ${b.base} · L${b.line}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Harmony/Friction
+  const harmony = [], friction = [];
+  [['body','Body'],['mind','Mind'],['heart','Heart']].forEach(([k,l])=>{
+    const a=ta[k], b=tb[k];
+    if(a.gate===b.gate) harmony.push(`Same ${l} gate (G${a.gate}) — ${YN.GATE_NAMES[a.gate]}`);
+    if(a.base===b.base) harmony.push(`Same ${l} base (${a.base}) — ${YN.VOICES[a.base-1]}`);
+    if(Math.abs(a.line-b.line)<=1) harmony.push(`${l} lines adjacent (L${a.line}/L${b.line}) — complementary`);
+    if(Math.abs(a.gate-b.gate)===32) friction.push(`${l} gates in opposition (G${a.gate}/G${b.gate})`);
+    if(a.base!==b.base && Math.abs(a.base-b.base)>=3) friction.push(`${l} bases divergent (${a.base} vs ${b.base}) — different modes`);
+  });
+
+  document.getElementById('hf-grid').innerHTML = `
+    <div class="hf-card harmony">
+      <div class="hf-title">◈ HARMONY ZONES</div>
+      ${harmony.length ? harmony.map(h=>`<div class="hf-item">${h}</div>`).join('') : '<div class="hf-item" style="color:var(--dim)">No direct resonance points detected</div>'}
+    </div>
+    <div class="hf-card friction">
+      <div class="hf-title">◈ FRICTION ZONES</div>
+      ${friction.length ? friction.map(f=>`<div class="hf-item">${f}</div>`).join('') : '<div class="hf-item" style="color:var(--dim)">No friction zones — compatible field</div>'}
+    </div>`;
+
+  // Penta
+  const pa=nodeA.penta, pb=nodeB.penta;
+  const pentaCompat = pa&&pb&&pa.pos!==pb.pos;
+  document.getElementById('penta-sync').innerHTML = [
+    { n:nameA, p:pa, cls:'mine' },
+    { n:nameB, p:pb, cls:'them' }
+  ].map(x=>`<div class="ps-card ${x.cls}">
+    <div class="ps-pos">POSITION ${x.p?.pos||'?'}</div>
+    <div class="ps-role">${PENTA_NAMES[x.p?.pos||0]||'Unknown'}</div>
+    <div class="ps-desc">${PENTA_DESCS[x.p?.pos||0]||''}</div>
+    <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);margin-top:6px">${x.n}</div>
+  </div>`).join('');
+
+  document.getElementById('pod-signal').innerHTML = pentaCompat ?
+    `<div class="pod-card">
+      <p style="font-size:13px">You occupy positions <strong>${pa.pos}</strong> and <strong>${pb.pos}</strong> — two distinct nodes in the same Penta field. Together you activate ${pa.pos} (${PENTA_NAMES[pa.pos]}) and ${pb.pos} (${PENTA_NAMES[pb.pos]}). Three more aligned beings complete the full node.</p>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--alive);margin-top:10px">◈ 3 POSITIONS OPEN IN YOUR PENTA FIELD</div>
+    </div>` : '';
+
+  // Sentences
+  document.getElementById('sentences-compare').innerHTML = [
+    { name:nameA, s:nodeA.sentence },
+    { name:nameB, s:nodeB.sentence }
+  ].map(x=>`<div style="background:var(--field);border:1px solid var(--rim);padding:16px;margin-bottom:2px">
+    <div style="font-family:var(--font-mono);font-size:8px;color:var(--gold);margin-bottom:8px;letter-spacing:0.2em">${x.name.toUpperCase()}</div>
+    <div style="font-style:italic;font-size:14px;color:var(--arc);line-height:1.6">${x.s}</div>
+  </div>`).join('');
+}
+
+function resetResult(){
+  document.getElementById('result-state').style.display='none';
+  document.getElementById('lookup-state').style.display='block';
+}
+
+function shareResonance(){
+  const url = window.location.href;
+  navigator.clipboard.writeText(url).then(()=>{
+    alert('Resonance link copied. Share it to show this comparison.');
+  }).catch(()=>{});
+}
+</script>
+</body>
+</html>

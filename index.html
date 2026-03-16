@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>YOU·N·I·VERSE — Enter the Field</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Syne+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void:#050308; --deep:#0a0612; --field:#0f0a1e; --rim:#1e1436;
+  --gate:#2e2050; --pulse:#6b3fa0; --signal:#9d6fe8; --bright:#c4a0ff;
+  --arc:#e8d5ff; --gold:#d4a843; --alive:#3dd68c; --warn:#e05050;
+  --text:#d0c8ee; --muted:#6a5a88; --dim:#3a2a5a;
+  --body-col:#c94040; --mind-col:#4080c9; --heart-col:#a040c9;
+  --font-d:'Syne',sans-serif; --font-b:'DM Sans',sans-serif; --font-m:'Syne Mono',monospace;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--void);color:var(--text);font-family:var(--font-b);overflow-x:hidden}
+
+/* HEX GRID */
+body::before{content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 2 L54 16 L54 44 L28 58 L2 44 L2 16 Z' fill='none' stroke='%23160e2a' stroke-width='0.5'/%3E%3Cpath d='M28 52 L54 66 L54 94 L28 108 L2 94 L2 66 Z' fill='none' stroke='%23160e2a' stroke-width='0.5'/%3E%3C/svg%3E");
+  opacity:.5;pointer-events:none;z-index:0}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;
+  background:rgba(5,3,8,.92);border-bottom:1px solid var(--rim);backdrop-filter:blur(12px);
+  z-index:1000;padding:0 16px;gap:2px}
+#nav a{font-family:var(--font-m);font-size:10px;letter-spacing:.15em;color:var(--muted);
+  text-decoration:none;padding:6px 12px;border-radius:3px;transition:all .2s;white-space:nowrap}
+#nav a:hover{color:var(--bright);background:var(--gate)}
+#nav a.active{color:var(--bright);background:var(--rim)}
+.mesh-dot{width:7px;height:7px;border-radius:50%;margin-left:auto;transition:all .4s}
+.mesh-dot.off{background:var(--muted)}
+.mesh-dot.on{background:var(--alive);box-shadow:0 0 6px var(--alive)}
+.mesh-dot.seeking{background:var(--gold);animation:blink 1s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* MAIN */
+main{position:relative;z-index:1;min-height:100vh;padding-top:48px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:80px 20px 40px;text-align:center}
+
+/* LOADER */
+#loader{position:fixed;inset:0;background:var(--void);z-index:500;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}
+.loader-hex{animation:spin 4s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.loader-text{font-family:var(--font-m);font-size:10px;letter-spacing:.3em;color:var(--gold)}
+.loader-sub{font-size:11px;color:var(--muted);max-width:260px;line-height:1.6;text-align:center}
+.loader-bar{width:200px;height:2px;background:var(--rim);border-radius:1px;overflow:hidden}
+.loader-fill{height:100%;background:linear-gradient(90deg,var(--pulse),var(--bright));
+  width:0%;transition:width .4s ease}
+
+/* LOGO */
+.logo-mark{font-family:var(--font-m);font-size:10px;letter-spacing:.5em;color:var(--gold);
+  margin-bottom:28px;animation:shimmer 3s ease infinite}
+@keyframes shimmer{0%,100%{opacity:.6}50%{opacity:1}}
+h1{font-family:var(--font-d);font-size:clamp(48px,12vw,96px);letter-spacing:.04em;
+  line-height:.92;margin-bottom:8px;
+  background:linear-gradient(180deg,var(--arc) 0%,var(--bright) 50%,var(--signal) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sub{font-size:14px;color:var(--muted);max-width:360px;margin:0 auto 40px;
+  font-weight:300;line-height:1.65}
+
+/* FORM */
+.entry-card{width:100%;max-width:440px;background:var(--deep);border:1px solid var(--rim);
+  padding:28px;animation:fadeUp .5s ease .1s both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.card-title{font-family:var(--font-m);font-size:9px;letter-spacing:.25em;color:var(--muted);
+  margin-bottom:20px;text-align:left}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.full{grid-column:1/-1}
+.fg{display:flex;flex-direction:column;gap:5px}
+label{font-family:var(--font-m);font-size:8px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
+input,select{background:var(--field);border:1px solid var(--rim);color:var(--text);
+  padding:9px 12px;font-family:var(--font-b);font-size:14px;outline:none;
+  border-radius:2px;transition:border-color .2s;-webkit-appearance:none;width:100%}
+input:focus,select:focus{border-color:var(--signal)}
+::placeholder{color:var(--muted)}
+.privacy-note{font-size:10px;color:var(--muted);text-align:left;line-height:1.5;margin-bottom:14px}
+.enter-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--pulse),#3a1a60);
+  border:none;color:var(--arc);font-family:var(--font-d);font-size:17px;
+  letter-spacing:.1em;cursor:pointer;transition:all .3s;margin-top:4px}
+.enter-btn:hover:not(:disabled){background:linear-gradient(135deg,#7b4fb0,#4a2a70);transform:translateY(-1px)}
+.enter-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* RETURNING */
+#returning{display:none;width:100%;max-width:440px;animation:fadeUp .4s ease}
+.node-card{background:var(--deep);border:1px solid var(--rim);padding:24px;margin-bottom:10px}
+.nc-tag{font-family:var(--font-m);font-size:8px;letter-spacing:.25em;color:var(--gold);margin-bottom:10px}
+.nc-addr{font-family:var(--font-m);font-size:9px;color:var(--muted);word-break:break-all;margin-bottom:14px;line-height:1.5}
+.trinity-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:16px}
+.tm{padding:10px 8px;border-top:2px solid}
+.tm.b{border-color:var(--body-col)} .tm.m{border-color:var(--mind-col)} .tm.h{border-color:var(--heart-col)}
+.tm-lbl{font-family:var(--font-m);font-size:7px;letter-spacing:.2em;color:var(--muted)}
+.tm-g{font-family:var(--font-d);font-size:20px;font-weight:700;line-height:1.1}
+.tm.b .tm-g{color:var(--body-col)} .tm.m .tm-g{color:var(--mind-col)} .tm.h .tm-g{color:var(--heart-col)}
+.tm-n{font-size:9px;color:var(--muted);margin-top:2px}
+.btn-row{display:flex;gap:8px}
+.btn-enter{flex:1;padding:10px;background:linear-gradient(135deg,var(--pulse),#3a1a60);
+  border:none;color:var(--arc);font-family:var(--font-d);font-size:14px;
+  letter-spacing:.08em;cursor:pointer;text-decoration:none;text-align:center;display:block}
+.btn-reset{padding:10px 16px;background:transparent;border:1px solid var(--dim);
+  color:var(--muted);font-family:var(--font-m);font-size:9px;cursor:pointer}
+.peer-count{margin-top:16px;font-family:var(--font-m);font-size:10px;color:var(--muted);letter-spacing:.1em}
+.peer-count span{color:var(--alive)}
+
+/* COHERENCE BAR */
+.coh-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.coh-item{flex:1;min-width:80px}
+.coh-lbl{font-family:var(--font-m);font-size:7px;letter-spacing:.15em;color:var(--muted);margin-bottom:3px}
+.coh-val{font-family:var(--font-d);font-size:16px;color:var(--bright);line-height:1}
+.coh-track{height:2px;background:var(--rim);margin-top:4px}
+.coh-fill{height:100%;background:linear-gradient(90deg,var(--pulse),var(--bright));transition:width .8s}
+</style>
+</head>
+<body>
+
+<!-- PYODIDE LOADER -->
+<div id="loader">
+  <svg class="loader-hex" width="72" height="72" viewBox="0 0 72 72">
+    <polygon points="36,4 68,20 68,52 36,68 4,52 4,20" fill="none" stroke="#6b3fa0" stroke-width="1.5"/>
+    <polygon points="36,14 58,26 58,46 36,58 14,46 14,26" fill="none" stroke="#2e2050" stroke-width="1"/>
+    <circle cx="36" cy="36" r="6" fill="#6b3fa0" opacity=".6"/>
+  </svg>
+  <div class="loader-text">◈ LOADING PYTHON BRAIN</div>
+  <div class="loader-bar"><div class="loader-fill" id="lbar"></div></div>
+  <div class="loader-sub" id="loader-sub">Initializing Pyodide runtime…</div>
+</div>
+
+<!-- NAV -->
+<nav id="nav">
+  <a href="index.html" class="active">◈ ENTER</a>
+  <a href="matrix.html">⬡ MATRIX</a>
+  <a href="network.html">◯ NETWORK</a>
+  <a href="profile.html">△ PROFILE</a>
+  <a href="resonance.html">≋ RESONANCE</a>
+  <div class="mesh-dot off" id="mesh-dot"></div>
+</nav>
+
+<main>
+  <div class="logo-mark">◈ YOU · N · I · VERSE ◈</div>
+  <h1>ENTER<br>THE FIELD</h1>
+  <p class="sub">Your birth data becomes your node. Real planetary calculations. Real consciousness coordinates. Real network.</p>
+
+  <!-- RETURNING NODE -->
+  <div id="returning">
+    <div class="node-card">
+      <div class="nc-tag">◈ NODE RECOGNIZED</div>
+      <div class="nc-addr" id="r-addr">—</div>
+      <div class="coh-row" id="r-coh"></div>
+      <div class="trinity-mini">
+        <div class="tm b"><div class="tm-lbl">BODY · TROPICAL</div><div class="tm-g" id="r-body">—</div><div class="tm-n" id="r-body-n">—</div></div>
+        <div class="tm m"><div class="tm-lbl">MIND · SIDEREAL</div><div class="tm-g" id="r-mind">—</div><div class="tm-n" id="r-mind-n">—</div></div>
+        <div class="tm h"><div class="tm-lbl">HEART · DRACONIC</div><div class="tm-g" id="r-heart">—</div><div class="tm-n" id="r-heart-n">—</div></div>
+      </div>
+      <div class="btn-row">
+        <a href="matrix.html" class="btn-enter">ENTER MATRIX</a>
+        <button class="btn-reset" onclick="resetNode()">RESET</button>
+      </div>
+    </div>
+    <div class="peer-count"><span id="peer-count">0</span> nodes in your field</div>
+  </div>
+
+  <!-- NEW NODE FORM -->
+  <div class="entry-card" id="new-entry" style="display:none">
+    <div class="card-title">◈ BIRTH DATA → CONSCIOUSNESS COORDINATES</div>
+    <div class="form-grid">
+      <div class="fg full">
+        <label>Name</label>
+        <input type="text" id="f-name" placeholder="How you appear in the network" maxlength="40">
+      </div>
+      <div class="fg">
+        <label>Birth Date</label>
+        <input type="date" id="f-date" required>
+      </div>
+      <div class="fg">
+        <label>Birth Time</label>
+        <input type="time" id="f-time">
+      </div>
+      <div class="fg">
+        <label>Latitude</label>
+        <input type="number" id="f-lat" placeholder="34.0522" step="0.001">
+      </div>
+      <div class="fg">
+        <label>Longitude</label>
+        <input type="number" id="f-lon" placeholder="-118.2437" step="0.001">
+      </div>
+      <div class="fg">
+        <label>UTC Offset (hours)</label>
+        <input type="number" id="f-tz" placeholder="-8" step="0.5" value="0">
+      </div>
+    </div>
+    <div class="privacy-note">Your data stays in your browser. Calculations run locally in Python (Pyodide). Nothing is sent to any server.</div>
+    <button class="enter-btn" id="enter-btn" onclick="enterField()" disabled>LOADING PYTHON…</button>
+  </div>
+</main>
+
+<!-- Pyodide -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script>
+
+// ─── STATE ────────────────────────────────────────────────────────
+const SK = 'yunv_node', PK = 'yunv_peers';
+let pyodide = null;
+let pyReady = false;
+
+function setBar(pct, msg) {
+  document.getElementById('lbar').style.width = pct + '%';
+  if(msg) document.getElementById('loader-sub').textContent = msg;
+}
+
+// ─── PYODIDE BOOT ─────────────────────────────────────────────────
+async function bootPyodide() {
+  try {
+    setBar(10, 'Loading Pyodide runtime…');
+    pyodide = await loadPyodide();
+
+    setBar(30, 'Installing ephem (planetary ephemeris)…');
+    await pyodide.loadPackage(['micropip', 'numpy']);
+    const micropip = pyodide.pyimport('micropip');
+    await micropip.install('ephem');
+
+    setBar(60, 'Loading consciousness modules…');
+    // Load Python files
+    const files = ['ephemeris.py','sentence_engine.py','state_observer.py','quantum_bridge.py','resonance_module_extended.py','trinity_field.py'];
+    for(const f of files) {
+      const resp = await fetch(f);
+      if(!resp.ok) throw new Error(`Failed to load ${f}`);
+      const code = await resp.text();
+      pyodide.FS.writeFile('/' + f, code);
+    }
+
+    setBar(80, 'Initializing trinity engine…');
+    // Import modules
+    await pyodide.runPythonAsync(`
+import sys
+sys.path.insert(0, '/')
+import ephemeris
+import resonance_module_extended as resonance
+import sentence_engine as se
+import state_observer as so
+import quantum_bridge as qb
+print("✓ Python brain loaded")
+print(f"  ephem version: {__import__('ephem').__version__}")
+`);
+
+    setBar(100, 'Field online.');
+    window.PYREADY = true;
+    pyReady = true;
+
+    // Hide loader after brief pause
+    setTimeout(() => {
+      document.getElementById('loader').style.opacity = '0';
+      document.getElementById('loader').style.transition = 'opacity .4s';
+      setTimeout(() => document.getElementById('loader').style.display = 'none', 400);
+    }, 400);
+
+    // Enable form
+    const btn = document.getElementById('enter-btn');
+    btn.disabled = false;
+    btn.textContent = 'CALCULATE MY NODE';
+
+    // Check for existing node
+    const existing = loadNode();
+    if(existing) {
+      showReturning(existing);
+    } else {
+      document.getElementById('new-entry').style.display = 'block';
+    }
+
+    // Try geolocation
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(p => {
+        document.getElementById('f-lat').value = p.coords.latitude.toFixed(4);
+        document.getElementById('f-lon').value = p.coords.longitude.toFixed(4);
+      }, () => {});
+    }
+
+    // Init P2P mesh if existing node
+    if(existing) initMesh();
+
+  } catch(err) {
+    document.getElementById('loader-sub').textContent = 'Error: ' + err.message;
+    document.getElementById('loader-sub').style.color = '#e05050';
+    console.error('Pyodide boot failed:', err);
+  }
+}
+
+// ─── PYTHON CALL ──────────────────────────────────────────────────
+async function pyCalculate(date, time, lat, lon, tz, mode='wake') {
+  if(!pyReady) throw new Error('Python not ready');
+  const result = await pyodide.runPythonAsync(`
+import json, ephemeris
+report = ephemeris.calculate(
+  birth_date="${date}",
+  birth_time="${time}",
+  latitude=${lat},
+  longitude=${lon},
+  timezone_offset=${tz},
+  conscious_mode="${mode}"
+)
+json.dumps(report)
+`);
+  return JSON.parse(result);
+}
+
+async function pyCompare(reportA, reportB) {
+  if(!pyReady) throw new Error('Python not ready');
+  const result = await pyodide.runPythonAsync(`
+import json, ephemeris
+ra = json.loads('''${JSON.stringify(reportA)}''')
+rb = json.loads('''${JSON.stringify(reportB)}''')
+res = ephemeris.compare_nodes(ra, rb)
+json.dumps(res)
+`);
+  return JSON.parse(result);
+}
+
+// expose globally
+window.pyCalculate = pyCalculate;
+window.pyCompare   = pyCompare;
+
+// ─── NODE STORAGE ─────────────────────────────────────────────────
+function saveNode(n) {
+  try { localStorage.setItem(SK, JSON.stringify(n)); } catch(e){}
+  window._node = n;
+}
+
+function loadNode() {
+  try {
+    const r = localStorage.getItem(SK);
+    if(r) { window._node = JSON.parse(r); return window._node; }
+  } catch(e){}
+  return null;
+}
+
+function resetNode() {
+  if(confirm('Remove your node data from this device?')) {
+    localStorage.removeItem(SK);
+    localStorage.removeItem(PK);
+    location.reload();
+  }
+}
+
+// ─── ENTER FIELD ─────────────────────────────────────────────────
+async function enterField() {
+  const name = document.getElementById('f-name').value.trim() || 'Unknown';
+  const date = document.getElementById('f-date').value;
+  const time = document.getElementById('f-time').value || '12:00';
+  const lat  = parseFloat(document.getElementById('f-lat').value) || 0;
+  const lon  = parseFloat(document.getElementById('f-lon').value) || 0;
+  const tz   = parseFloat(document.getElementById('f-tz').value)  || 0;
+
+  if(!date) { alert('Birth date required.'); return; }
+
+  const btn = document.getElementById('enter-btn');
+  btn.disabled = true;
+  btn.textContent = 'CALCULATING ALL PLANETS…';
+
+  try {
+    const report = await pyCalculate(date, time, lat, lon, tz);
+    const node = {
+      name, birthDate: date, birthTime: time, lat, lon, tz,
+      trinity: report,   // full report IS the trinity
+      report,
+      penta:    report.penta,
+      sentence: report.sentence,
+      address:  report.address,
+      created:  Date.now()
+    };
+    saveNode(node);
+    showReturning(node);
+    initMesh();
+  } catch(err) {
+    alert('Calculation error: ' + err.message);
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'CALCULATE MY NODE';
+  }
+}
+
+// ─── RETURNING NODE DISPLAY ───────────────────────────────────────
+function showReturning(node) {
+  document.getElementById('new-entry').style.display  = 'none';
+  document.getElementById('returning').style.display  = 'block';
+
+  const r = node.report || node.trinity;
+  document.getElementById('r-addr').textContent    = node.address;
+  document.getElementById('r-body').textContent    = 'G' + r.body.gate;
+  document.getElementById('r-mind').textContent    = 'G' + r.mind.gate;
+  document.getElementById('r-heart').textContent   = 'G' + r.heart.gate;
+  document.getElementById('r-body-n').textContent  = (r.body.name||'').slice(0,16);
+  document.getElementById('r-mind-n').textContent  = (r.mind.name||'').slice(0,16);
+  document.getElementById('r-heart-n').textContent = (r.heart.name||'').slice(0,16);
+
+  const c = r.coherence;
+  if(c) {
+    document.getElementById('r-coh').innerHTML = [
+      {l:'MIND↔BODY',  v: Math.round(c.mind_body  * 100)},
+      {l:'BODY↔HEART', v: Math.round(c.body_heart * 100)},
+      {l:'OVERALL',    v: Math.round(c.overall     * 100)},
+    ].map(x=>`<div class="coh-item">
+      <div class="coh-lbl">${x.l}</div>
+      <div class="coh-val">${x.v}%</div>
+      <div class="coh-track"><div class="coh-fill" style="width:${x.v}%"></div></div>
+    </div>`).join('');
+  }
+}
+
+// ─── P2P MESH (PeerJS) ────────────────────────────────────────────
+let _peer = null, _conns = {}, _knownPeers = {};
+
+function loadPeers() {
+  try { const r=localStorage.getItem(PK); if(r) _knownPeers=JSON.parse(r); } catch(e){}
+}
+
+function savePeers() {
+  try { localStorage.setItem(PK, JSON.stringify(_knownPeers)); } catch(e){}
+}
+
+function hashStr(s) {
+  let h=0x811c9dc5;
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=(h*0x01000193)>>>0;}
+  return h.toString(36);
+}
+
+function initMesh() {
+  const node = window._node;
+  if(!node) return;
+  loadPeers();
+  if(typeof Peer === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js';
+    s.onload = () => _startPeer(node);
+    document.head.appendChild(s);
+  } else _startPeer(node);
+}
+
+function _startPeer(node) {
+  const pid = 'yunv_' + hashStr(node.address);
+  node.peerId = pid; saveNode(node);
+  _peer = new Peer(pid, {host:'0.peerjs.com',port:443,secure:true,path:'/'});
+  _peer.on('open', id => {
+    document.getElementById('mesh-dot').className = 'mesh-dot on';
+    document.getElementById('peer-count').textContent = Object.keys(_knownPeers).length;
+    const inv = new URL(location.href).searchParams.get('connect');
+    if(inv && inv !== pid) _connectTo(inv);
+    Object.keys(_knownPeers).forEach(p => { if(p!==pid) _connectTo(p); });
+  });
+  _peer.on('connection', c => _handleConn(c));
+  _peer.on('error', e => console.warn('Peer error:', e.type));
+  _peer.on('disconnected', () => _peer.reconnect());
+}
+
+function _connectTo(pid) {
+  if(_conns[pid]) return;
+  _handleConn(_peer.connect(pid, {reliable:true}));
+}
+
+function _handleConn(conn) {
+  conn.on('open', () => {
+    _conns[conn.peer] = conn;
+    const node = window._node;
+    if(node) conn.send({type:'handshake', node:{
+      name:node.name, peerId:node.peerId, address:node.address,
+      trinity:{body:node.report.body, mind:node.report.mind, heart:node.report.heart,
+               shadow:node.report.shadow, coherence:node.report.coherence},
+      ci:node.report.ci, penta:node.penta, sentence:node.sentence
+    }});
+  });
+  conn.on('data', d => {
+    if(!d?.type) return;
+    if(d.type==='handshake' || d.type==='node_update') {
+      _knownPeers[conn.peer] = d.node; savePeers();
+      document.getElementById('peer-count').textContent = Object.keys(_knownPeers).length;
+    }
+  });
+  conn.on('close', () => { delete _conns[conn.peer]; });
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────
+bootPyodide();
+</script>
+</body>
+</html>
