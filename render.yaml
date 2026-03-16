@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: syntia-server
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    plan: free
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATA_DIR
+        value: ./data
+      # Add these in Render dashboard (keep private):
+      # GROQ_KEY = your groq key
+      # SUPABASE_URL = your supabase url
+      # SUPABASE_KEY = your supabase anon key
