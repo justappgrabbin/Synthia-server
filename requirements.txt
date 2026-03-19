@@ -1,4 +1,5 @@
-
+sse-starlette
+httpx
 torchvision
 torch
 websockets>=12.0
