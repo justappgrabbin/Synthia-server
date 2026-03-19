@@ -1,7 +1,11 @@
 """
-TRIDENT — Tiny 3-Head Language Model
-Heads: Code | Math | Research
-~1M parameters | portable | trains on CPU
+TRIDENT — 4-Head Language Model
+Heads: Code | Math | Research | Cynthia
+~1.2M parameters | portable | trains on CPU | Termux compatible
+
+Cynthia head: trained on consciousness field vocabulary —
+gates, channels, centers, trinity (Tropical/Sidereal/Draconic),
+stellar proximology, Human Design, Gene Keys frequency spectrum.
 """
 
 import torch, torch.nn as nn, torch.nn.functional as F, math
@@ -19,7 +23,7 @@ class TridentConfig:
     head_d_ff   = 256
     rag_top_k   = 3
     rag_dim     = 128
-    heads       = ['code', 'math', 'research']
+    heads       = ['code', 'math', 'research', 'cynthia']  # ← added
 
 
 class PositionalEncoding(nn.Module):
@@ -41,7 +45,9 @@ class TransformerBlock(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout=0.1):
         super().__init__()
         self.attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
-        self.ff   = nn.Sequential(nn.Linear(d_model, d_ff), nn.GELU(), nn.Dropout(dropout), nn.Linear(d_ff, d_model))
+        self.ff   = nn.Sequential(
+            nn.Linear(d_model, d_ff), nn.GELU(), nn.Dropout(dropout), nn.Linear(d_ff, d_model)
+        )
         self.ln1  = nn.LayerNorm(d_model)
         self.ln2  = nn.LayerNorm(d_model)
         self.drop = nn.Dropout(dropout)
@@ -57,15 +63,16 @@ class RAGFusionGate(nn.Module):
     """Cross-attention gate: hidden state attends over retrieved chunks."""
     def __init__(self, d_model, rag_dim):
         super().__init__()
-        self.xattn = nn.MultiheadAttention(d_model, 4, batch_first=True, kdim=rag_dim, vdim=rag_dim)
+        self.xattn = nn.MultiheadAttention(d_model, 4, batch_first=True,
+                                           kdim=rag_dim, vdim=rag_dim)
         self.gate  = nn.Linear(d_model * 2, d_model)
         self.ln    = nn.LayerNorm(d_model)
 
     def forward(self, x, chunks):
         if chunks is None:
             return x
-        ctx, _ = self.xattn(x, chunks, chunks)
-        fused  = torch.sigmoid(self.gate(torch.cat([x, ctx], dim=-1))) * ctx
+        ctx, _  = self.xattn(x, chunks, chunks)
+        fused   = torch.sigmoid(self.gate(torch.cat([x, ctx], dim=-1))) * ctx
         return self.ln(x + fused)
 
 
@@ -74,7 +81,10 @@ class SpecialistHead(nn.Module):
         super().__init__()
         self.name     = name
         self.rag_gate = RAGFusionGate(cfg.d_model, cfg.rag_dim)
-        self.layers   = nn.ModuleList([TransformerBlock(cfg.d_model, cfg.n_heads, cfg.head_d_ff, cfg.dropout) for _ in range(cfg.head_layers)])
+        self.layers   = nn.ModuleList([
+            TransformerBlock(cfg.d_model, cfg.n_heads, cfg.head_d_ff, cfg.dropout)
+            for _ in range(cfg.head_layers)
+        ])
         self.ln_out   = nn.LayerNorm(cfg.d_model)
         self.lm_head  = nn.Linear(cfg.d_model, cfg.vocab_size, bias=False)
 
@@ -86,9 +96,11 @@ class SpecialistHead(nn.Module):
 
 
 class HeadRouter(nn.Module):
-    def __init__(self, d_model, n=3):
+    def __init__(self, d_model, n=4):   # ← n=4 now
         super().__init__()
-        self.proj = nn.Sequential(nn.Linear(d_model, 64), nn.GELU(), nn.Linear(64, n))
+        self.proj = nn.Sequential(
+            nn.Linear(d_model, 64), nn.GELU(), nn.Linear(64, n)
+        )
 
     def forward(self, x):
         return F.softmax(self.proj(x.mean(dim=1)), dim=-1)
@@ -101,7 +113,10 @@ class Trident(nn.Module):
         c             = self.cfg
         self.embed    = nn.Embedding(c.vocab_size, c.d_model)
         self.pos_enc  = PositionalEncoding(c.d_model, c.max_seq_len, c.dropout)
-        self.backbone = nn.ModuleList([TransformerBlock(c.d_model, c.n_heads, c.d_ff, c.dropout) for _ in range(c.n_layers)])
+        self.backbone = nn.ModuleList([
+            TransformerBlock(c.d_model, c.n_heads, c.d_ff, c.dropout)
+            for _ in range(c.n_layers)
+        ])
         self.ln_back  = nn.LayerNorm(c.d_model)
         self.router   = HeadRouter(c.d_model, len(c.heads))
         self.heads    = nn.ModuleDict({n: SpecialistHead(c, n) for n in c.heads})
@@ -115,12 +130,12 @@ class Trident(nn.Module):
             nn.init.normal_(m.weight, 0, 0.02)
 
     def forward(self, ids, rag=None, head=None, return_router=False):
-        B, T = ids.shape
-        mask = torch.triu(torch.full((T, T), float('-inf'), device=ids.device), diagonal=1)
-        x    = self.pos_enc(self.embed(ids))
+        B, T  = ids.shape
+        mask  = torch.triu(torch.full((T, T), float('-inf'), device=ids.device), diagonal=1)
+        x     = self.pos_enc(self.embed(ids))
         for layer in self.backbone:
             x = layer(x, mask)
-        x = self.ln_back(x)
+        x  = self.ln_back(x)
         rw = self.router(x)
 
         def _rag(name):
@@ -130,7 +145,9 @@ class Trident(nn.Module):
         if head:
             logits = self.heads[head](x, _rag(head), mask)
         else:
-            stack  = torch.stack([self.heads[n](x, _rag(n), mask) for n in self.cfg.heads], dim=1)
+            stack  = torch.stack(
+                [self.heads[n](x, _rag(n), mask) for n in self.cfg.heads], dim=1
+            )
             logits = (stack * rw.unsqueeze(-1).unsqueeze(-1)).sum(dim=1)
 
         return (logits, rw) if return_router else logits
@@ -142,7 +159,7 @@ class Trident(nn.Module):
             ctx    = ids[:, -self.cfg.max_seq_len:]
             logits = self.forward(ctx, rag=rag, head=head)[:, -1, :] / temp
             if top_k:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                v, _   = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, -1:]] = float('-inf')
             ids = torch.cat([ids, torch.multinomial(F.softmax(logits, -1), 1)], dim=1)
         return ids
@@ -153,11 +170,11 @@ class Trident(nn.Module):
 
 if __name__ == '__main__':
     m = Trident()
-    print(f"TRIDENT  {m.param_count()/1e6:.2f}M params")
+    print(f"TRIDENT {m.param_count()/1e6:.2f}M params")
+    print(f"Heads: {list(m.heads.keys())}")
     ids = torch.randint(0, 4096, (2, 32))
     rag = torch.randn(2, 3, 128)
     logits, rw = m(ids, rag=rag, return_router=True)
-    print(f"logits   {logits.shape}")
-    print(f"router   {rw[0].detach().tolist()}")
-    out = m.generate(ids[:1], max_new=8, rag=rag[:1])
-    print(f"generated {out.shape}")
+    print(f"logits {logits.shape} | router {rw[0].detach().tolist()}")
+    out = m.generate(ids[:1], max_new=8, rag=rag[:1], head='cynthia')
+    print(f"cynthia generated {out.shape}")
