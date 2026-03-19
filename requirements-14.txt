@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sse-starlette
+httpx
+numpy>=1.24.0
+onnxruntime
+onnx>=1.14.0
+mcp[cli]>=1.0.0
+websockets>=12.0
