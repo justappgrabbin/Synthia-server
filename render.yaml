@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: synthia-server
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATA_DIR
+        value: /tmp/synthia_data
