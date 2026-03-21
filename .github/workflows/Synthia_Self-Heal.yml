@@ -1,4 +1,4 @@
-name: Synthia Self-Heal
+  name: Synthia Self-Heal
 
 on:
   push:
@@ -229,3 +229,4 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "No issues detected. Synthia OS is ready!" >> $GITHUB_STEP_SUMMARY
           fi
+   
