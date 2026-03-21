@@ -1,11 +1,25 @@
 services:
   - type: web
-    name: synthia-server
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python server.py
+    name: synthia-os
+    runtime: node
+    plan: standard
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: PORT
         value: 10000
-      - key: DATA_DIR
-        value: /tmp/synthia_data
+      - key: SUPABASE_PRIMARY_URL
+        sync: false
+      - key: SUPABASE_PRIMARY_KEY
+        sync: false
+      - key: SUPABASE_SECONDARY_URL
+        sync: false
+      - key: SUPABASE_SECONDARY_KEY
+        sync: false
+      - key: STELLAR_URL
+        sync: false
+      - key: STELLAR_API_KEY
+        sync: false
