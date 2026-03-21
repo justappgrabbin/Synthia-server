@@ -1,39 +1,228 @@
-  name: Synthia Self-Heal
+name: Synthia Universal Self-Heal
 
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'  # Check every 6 hours
+    - cron: '0 */6 * * *'
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
 
 jobs:
-  diagnose-and-heal:
+  # ==========================================
+  # LAYER 0: Python Requirements Auto-Heal
+  # ==========================================
+  heal-python-deps:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+    outputs:
+      reqs_generated: ${{ steps.pipreqs.outputs.generated }}
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
-      - name: Check Node.js setup
-        id: check-node
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install pipreqs
+        run: pip install pipreqs
+      
+      - name: Scan Python Files & Generate Requirements
+        id: pipreqs
         run: |
-          echo "Checking package.json..."
-          if [ ! -f "package.json" ]; then
-            echo "MISSING_PACKAGE=true" >> $GITHUB_OUTPUT
-            echo "❌ package.json missing"
-          else
-            echo "✅ package.json exists"
-            # Check if express is listed
-            if ! grep -q '"express"' package.json; then
-              echo "MISSING_DEPS=true" >> $GITHUB_OUTPUT
-              echo "❌ Dependencies incomplete"
+          PYTHON_FILES=$(find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*" -not -path "./node_modules/*" | head -1)
+          
+          if [ -n "$PYTHON_FILES" ]; then
+            echo "Python files found. Scanning imports..."
+            pipreqs . --force --ignore venv,.venv,node_modules,__pycache__,.git
+            
+            if [ -f "requirements.txt" ]; then
+              echo "generated=true" >> $GITHUB_OUTPUT
+              echo "✅ Generated requirements.txt:"
+              cat requirements.txt
             fi
+          else
+            echo "No Python files found, skipping"
+            echo "generated=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Commit Requirements
+        if: steps.pipreqs.outputs.generated == 'true'
+        run: |
+          git add requirements.txt
+          if ! git diff --staged --quiet; then
+            git config user.name "Synthia Heal[bot]"
+            git config user.email "heal@synthia.local"
+            git commit -m "📦 [Python] Auto-generated requirements.txt from imports"
+            git push
+          fi
+
+  # ==========================================
+  # LAYER 1: Node.js Dependencies Auto-Heal
+  # ==========================================
+  heal-node-deps:
+    runs-on: ubuntu-latest
+    needs: heal-python-deps
+    permissions:
+      contents: write
+    outputs:
+      deps_added: ${{ steps.fix-node.outputs.added }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install depcheck
+        run: npm install -g depcheck
+      
+      - name: Scan for Missing Node Dependencies
+        id: scan-node
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "No package.json found, skipping Node scan"
+            echo "has_missing=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
           
-          # Check server folder
+          depcheck --json > depcheck-result.json 2>/dev/null || true
+          
+          if [ -f "depcheck-result.json" ]; then
+            MISSING=$(cat depcheck-result.json | jq -r '.dependencies[]' 2>/dev/null | tr '\n' ' ')
+            
+            if [ -n "$MISSING" ]; then
+              echo "❌ Missing Node deps: $MISSING"
+              echo "missing=$MISSING" >> $GITHUB_OUTPUT
+              echo "has_missing=true" >> $GITHUB_OUTPUT
+            else
+              echo "✅ All Node dependencies present"
+              echo "has_missing=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+      
+      - name: Auto-Add Missing Node Dependencies
+        id: fix-node
+        if: steps.scan-node.outputs.has_missing == 'true'
+        run: |
+          MISSING="${{ steps.scan-node.outputs.missing }}"
+          ADDED=0
+          
+          for pkg in $MISSING; do
+            echo "🔧 Installing: $pkg"
+            npm install --save "$pkg" || npm install --save "${pkg}@latest" || true
+            ADDED=$((ADDED + 1))
+          done
+          
+          echo "added=$ADDED" >> $GITHUB_OUTPUT
+      
+      - name: Commit Node Fixes
+        if: steps.fix-node.outputs.added > 0
+        run: |
+          git add package.json package-lock.json 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git config user.name "Synthia Heal[bot]"
+            git config user.email "heal@synthia.local"
+            git commit -m "📦 [Node] Auto-added ${{ steps.fix-node.outputs.added }} missing dependencies"
+            git push
+          fi
+
+  # ==========================================
+  # LAYER 2: Structure & Files
+  # ==========================================
+  heal-structure:
+    runs-on: ubuntu-latest
+    needs: [heal-python-deps, heal-node-deps]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Scan Repository Structure
+        id: scan
+        run: |
+          ERRORS=0
+          
+          [ ! -f "package.json" ] && [ -n "$(find . -name '*.js' -not -path './node_modules/*' | head -1)" ] && echo "missing_package=true" >> $GITHUB_OUTPUT && ERRORS=$((ERRORS+1))
+          [ ! -f "requirements.txt" ] && [ -n "$(find . -name '*.py' -not -path './venv/*' | head -1)" ] && echo "missing_requirements=true" >> $GITHUB_OUTPUT && ERRORS=$((ERRORS+1))
+          [ ! -f ".gitignore" ] && echo "missing_gitignore=true" >> $GITHUB_OUTPUT && ERRORS=$((ERRORS+1))
+          [ ! -f "README.md" ] && echo "missing_readme=true" >> $GITHUB_OUTPUT && ERRORS=$((ERRORS+1))
+          
+          echo "total_errors=$ERRORS" >> $GITHUB_OUTPUT
+      
+      - name: Heal Missing Files
+        run: |
+          if [ "${{ steps.scan.outputs.missing_gitignore }}" == "true" ]; then
+            cat > .gitignore << 'EOF'
+          # Python
+          __pycache__/
+          *.py[cod]
+          *$py.class
+          *.so
+          .Python
+          venv/
+          .venv/
+          env/
+          *.egg-info/
+          dist/
+          build/
+          
+          # Node
+          node_modules/
+          npm-debug.log*
+          .next/
+          dist/
+          
+          # Environment
+          .env
+          .env.local
+          
+          # IDE
+          .vscode/
+          .idea/
+          *.swp
+          
+          # Misc
+          .DS_Store
+          *.log
+          EOF
+          fi
+      
+      - name: Commit Structure Fixes
+        run: |
+          git add -A
+          if ! git diff --staged --quiet; then
+            git config user.name "Synthia Heal[bot]"
+            git config user.email "heal@synthia.local"
+            git commit -m "🏗️ [Structure] Healed repository files"
+            git push
+          fi
+
+  # ==========================================
+  # FINAL REPORT
+  # ==========================================
+  healing-report:
+    runs-on: ubuntu-latest
+    needs: [heal-python-deps, heal-node-deps, heal-structure]
+    if: always()
+    steps:
+      - name: Generate Report
+        run: |
+          echo "# 🏥 Synthia Universal Self-Heal Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Python Requirements | ${{ needs.heal-python-deps.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node Dependencies | ${{ needs.heal-node-deps.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Structure | ${{ needs.heal-structure.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*Completed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")*" >> $GITHUB_STEP_SUMMARY
           if [ ! -d "server" ]; then
             echo "MISSING_SERVER=true" >> $GITHUB_OUTPUT
             echo "❌ server/ folder missing"
