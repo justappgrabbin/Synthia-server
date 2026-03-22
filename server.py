@@ -817,6 +817,629 @@ async def tools():
          "params":["user_id","message","groq_key?","head?"]},
     ]})
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PAPER WORLDS — artifact mesh, gap filler, mixer, graph, GitHub publisher
+#  Added directly to Synthia server — same process, same port, same Supabase
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import base64, mimetypes, uuid as _uuid
+from typing import Tuple
+
+# ── optional Supabase ─────────────────────────────────────────────────────────
+try:
+    from supabase import create_client as _sb_create
+    _SUPABASE_URL = os.environ.get("SUPABASE_URL","")
+    _SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY","")
+    if _SUPABASE_URL and _SUPABASE_KEY:
+        _sb = _sb_create(_SUPABASE_URL, _SUPABASE_KEY)
+        PW_SUPABASE = True
+        print("[PaperWorlds] Supabase connected")
+    else:
+        _sb = None
+        PW_SUPABASE = False
+        print("[PaperWorlds] No Supabase env — using in-memory store")
+except Exception as _e:
+    _sb = None
+    PW_SUPABASE = False
+    print(f"[PaperWorlds] Supabase unavailable: {_e}")
+
+# ── optional multipart upload ─────────────────────────────────────────────────
+try:
+    from fastapi import UploadFile, File, Form
+    from typing import List as _List
+    PW_UPLOAD = True
+except Exception:
+    PW_UPLOAD = False
+
+# ── in-memory fallback store ──────────────────────────────────────────────────
+_pw_artifacts: Dict[str, Dict] = {}
+_pw_edges: list = []
+_pw_gaps: list = []
+_pw_trident: Dict[str, Dict] = {}
+
+# ── GitHub config ─────────────────────────────────────────────────────────────
+_GH_TOKEN    = os.environ.get("GITHUB_TOKEN","")
+_GH_USER     = os.environ.get("GITHUB_USERNAME","justappgrabbin")
+_ANTHROPIC   = os.environ.get("ANTHROPIC_API_KEY","")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ONTOLOGICAL ADDRESS ENGINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_ZODIACS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+            "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+_PLANETS_LIST = ["Sun","Moon","Mercury","Venus","Mars","Jupiter",
+                 "Saturn","Uranus","Neptune","Pluto","North Node","South Node"]
+_DIMS = ["being","designed","composite_space","movement_evolutionary"]
+_DIM_MULT = {d: i * 64*6*6*6*5 for i,d in enumerate(_DIMS)}
+
+def _pw_hash(s: str) -> int:
+    h = 0xdeadbeef
+    for c in s:
+        h = ((h ^ ord(c)) * 2654435761) & 0xFFFFFFFF
+    return h
+
+def _derive_coords(name: str, content: str) -> dict:
+    seed = _pw_hash(name + content[:500])
+    return {
+        "gate":  (seed % 64) + 1,
+        "line":  (seed % 6)  + 1,
+        "color": ((seed >> 3) % 6) + 1,
+        "tone":  ((seed >> 6) % 6) + 1,
+        "base":  ((seed >> 9) % 5) + 1,
+        "degree":  seed % 360,
+        "minute":  seed % 60,
+        "second":  (seed >> 2) % 60,
+        "zodiac":  _ZODIACS[(seed >> 4) % 12],
+        "house":   ((seed >> 8) % 12) + 1,
+        "planet":  _PLANETS_LIST[seed % len(_PLANETS_LIST)],
+    }
+
+def _infer_dim(ftype: str, content: str) -> str:
+    t = ftype.lower()
+    if any(x in t for x in ["html","app","world"]): return "composite_space"
+    if any(x in t for x in ["upload","file"]):       return "being"
+    if any(x in t for x in ["code","script"]):       return "designed"
+    if any(x in content for x in ["animate","stream","tick"]): return "movement_evolutionary"
+    return "designed"
+
+def _make_address(name: str, content: str, ftype: str) -> dict:
+    dim  = _infer_dim(ftype, content)
+    c    = _derive_coords(name, content)
+    sig_src = f"{dim}·{c['gate']}·{c['line']}·{c['color']}·{c['tone']}·{c['base']}·{c['zodiac']}·H{c['house']}·{c['planet']}"
+    sig  = sig_src + "#" + hex(_pw_hash(sig_src + name))[2:].upper()
+    addr_22t = (_DIM_MULT[dim] +
+                (c["gate"]-1)*6*6*6*5 + (c["line"]-1)*6*6*5 +
+                (c["color"]-1)*6*5    + (c["tone"]-1)*5     + (c["base"]-1))
+    return {**c, "dimension": dim, "signature": sig, "address_22t": addr_22t,
+            "place_label": "Paper Worlds"}
+
+def _resonance(a: dict, b: dict) -> float:
+    gate_score  = 1.0 if a["gate"]==b["gate"] else (0.6 if abs(a["gate"]-b["gate"])<5 else 0.2)
+    line_score  = 1.0 if a["line"]==b["line"] else 0.4
+    dim_score   = 1.0 if a["dimension"]==b["dimension"] else 0.5
+    zod_score   = 0.8 if a["zodiac"]==b["zodiac"] else 0.3
+    return round(gate_score*0.4 + line_score*0.2 + dim_score*0.25 + zod_score*0.15, 3)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SUPABASE HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _sb_upsert_artifact(data: dict) -> dict:
+    if PW_SUPABASE and _sb:
+        try:
+            r = _sb.table("pw_artifacts").upsert(data, on_conflict="signature").execute()
+            return r.data[0] if r.data else data
+        except Exception as e:
+            print(f"[PW] Supabase upsert error: {e}")
+    _pw_artifacts[data["id"]] = data
+    return data
+
+async def _sb_get_artifacts(limit=100) -> list:
+    if PW_SUPABASE and _sb:
+        try:
+            r = _sb.table("pw_artifacts").select("*").order("created_at", desc=True).limit(limit).execute()
+            return r.data or []
+        except Exception as e:
+            print(f"[PW] Supabase fetch error: {e}")
+    return list(_pw_artifacts.values())[-limit:]
+
+async def _sb_get_artifact(aid: str) -> Optional[dict]:
+    if PW_SUPABASE and _sb:
+        try:
+            r = _sb.table("pw_artifacts").select("*").eq("id", aid).execute()
+            return r.data[0] if r.data else None
+        except Exception:
+            pass
+    return _pw_artifacts.get(aid)
+
+async def _sb_create_edge(from_id: str, to_id: str, edge_type: str, weight=1.0):
+    edge = {"from_id": from_id, "to_id": to_id, "edge_type": edge_type, "weight": weight}
+    if PW_SUPABASE and _sb:
+        try:
+            _sb.table("pw_edges").upsert(edge, on_conflict="from_id,to_id,edge_type").execute()
+            return
+        except Exception:
+            pass
+    _pw_edges.append(edge)
+
+async def _sb_get_graph() -> dict:
+    if PW_SUPABASE and _sb:
+        try:
+            nodes = _sb.table("pw_artifacts").select(
+                "id,name,type,gate,dimension,signature,address_22t,resonance_score,created_at"
+            ).execute().data or []
+            edges = _sb.table("pw_edges").select("from_id,to_id,edge_type,weight").execute().data or []
+            return {"nodes": nodes, "edges": edges}
+        except Exception as e:
+            print(f"[PW] graph fetch error: {e}")
+    nodes = [{"id":a["id"],"name":a["name"],"type":a["type"],
+               "gate":a.get("gate"),"dimension":a.get("dimension"),
+               "signature":a.get("signature"),"address_22t":a.get("address_22t")}
+             for a in _pw_artifacts.values()]
+    return {"nodes": nodes, "edges": _pw_edges}
+
+async def _sb_upsert_trident(user_id: str, state: dict) -> dict:
+    state["user_id"] = user_id
+    state["updated_at"] = datetime.utcnow().isoformat()
+    if PW_SUPABASE and _sb:
+        try:
+            r = _sb.table("pw_trident").upsert(state, on_conflict="user_id").execute()
+            return r.data[0] if r.data else state
+        except Exception as e:
+            print(f"[PW] Trident upsert error: {e}")
+    _pw_trident[user_id] = state
+    return state
+
+async def _sb_get_trident(user_id: str) -> Optional[dict]:
+    if PW_SUPABASE and _sb:
+        try:
+            r = _sb.table("pw_trident").select("*").eq("user_id", user_id).execute()
+            return r.data[0] if r.data else None
+        except Exception:
+            pass
+    return _pw_trident.get(user_id)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GAP FILLER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _analyze_gaps(artifact: dict) -> list:
+    gaps = []
+    html = artifact.get("html") or artifact.get("content") or ""
+    aid  = artifact["id"]
+    name = artifact["name"]
+
+    if html and "viewport" not in html:
+        gaps.append({"type":"missing_viewport","severity":"critical","artifact_id":aid,
+                     "description":"No mobile viewport meta tag",
+                     "scaffold":'<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">',
+                     "can_autofill": True})
+    if html and "charset" not in html:
+        gaps.append({"type":"missing_charset","severity":"warning","artifact_id":aid,
+                     "description":"No charset declaration",
+                     "scaffold":'<meta charset="UTF-8">',
+                     "can_autofill": True})
+    if html and not re.search(r'<title>', html, re.I):
+        gaps.append({"type":"missing_title","severity":"info","artifact_id":aid,
+                     "description":"No <title> tag",
+                     "scaffold":f'<title>{name}</title>',
+                     "can_autofill": True})
+    if html and re.search(r'http://(?!localhost)', html):
+        gaps.append({"type":"insecure_resources","severity":"warning","artifact_id":aid,
+                     "description":"Insecure http:// refs — blocked on HTTPS",
+                     "can_autofill": True})
+    if html and "fetch(" in html and ".catch" not in html:
+        gaps.append({"type":"missing_error_handling","severity":"warning","artifact_id":aid,
+                     "description":"fetch() calls with no .catch()",
+                     "can_autofill": False})
+    is_cons = any(k in html.lower() for k in ["gate","resonance","consciousness"])
+    has_syn = "synthia-server" in html or "synthia_server" in html
+    if is_cons and not has_syn and len(html) > 2000:
+        gaps.append({"type":"missing_synthia_bridge","severity":"info","artifact_id":aid,
+                     "description":"Consciousness app with no Synthia connection",
+                     "can_autofill": False})
+    return gaps
+
+def _apply_static_gaps(html: str, gaps: list) -> str:
+    for g in gaps:
+        if not g.get("can_autofill"): continue
+        sc = g.get("scaffold","")
+        t  = g["type"]
+        if t == "missing_viewport" and sc:
+            html = html.replace("<head>", f"<head>\n  {sc}", 1)
+        elif t == "missing_charset" and sc:
+            html = html.replace("<head>", f"<head>\n  {sc}", 1)
+        elif t == "missing_title" and sc:
+            html = re.sub(r'</head>', f'  {sc}\n</head>', html, count=1, flags=re.I)
+        elif t == "insecure_resources":
+            html = re.sub(r'http://(?!localhost)', 'https://', html)
+    return html
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MIXER  (Claude-powered, auto-triggers on resonance ≥ 0.65)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _claude_mix(a: dict, b: dict, score: float) -> Optional[str]:
+    """Call Anthropic API to blend two artifacts into one."""
+    if not _ANTHROPIC: return None
+    ca = (a.get("html") or a.get("content",""))[:3500]
+    cb = (b.get("html") or b.get("content",""))[:3500]
+    prompt = f"""You are the Paper Worlds Mixer. Two consciousness artifacts are resonant (score {score:.0%}) and must be woven together.
+
+ARTIFACT A: "{a['name']}" Gate {a.get('gate')} {a.get('dimension')}
+{ca}
+
+ARTIFACT B: "{b['name']}" Gate {b.get('gate')} {b.get('dimension')}
+{cb}
+
+Create ONE seamless self-contained HTML file that:
+- Preserves the best of both
+- Uses YOU-N-I-VERSE aesthetic: bg #070b18, cyan #7affef, violet #a855f7, amber #f59e0b
+- Is mobile-first with viewport meta
+- Expresses Gate {a.get('gate')} + Gate {b.get('gate')} energy
+
+Return ONLY the complete HTML. No explanations. No markdown fences."""
+
+    try:
+        async with httpx.AsyncClient(timeout=40) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": _ANTHROPIC,
+                         "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model":"claude-sonnet-4-20250514","max_tokens":4000,
+                      "messages":[{"role":"user","content":prompt}]}
+            )
+            if r.status_code == 200:
+                return r.json()["content"][0]["text"].strip()
+    except Exception as e:
+        print(f"[PW Mixer] Claude error: {e}")
+    return None
+
+async def _auto_mix(new_artifact: dict):
+    """Background task: find resonant pairs and mix them."""
+    all_arts = await _sb_get_artifacts(50)
+    for other in all_arts:
+        if other["id"] == new_artifact["id"]: continue
+        score = _resonance(new_artifact, other)
+        if score < 0.65: continue
+
+        # Check already mixed
+        already = any(
+            e["from_id"] in (new_artifact["id"], other["id"]) and
+            e["to_id"]   in (new_artifact["id"], other["id"]) and
+            e["edge_type"] == "mixed_with"
+            for e in _pw_edges
+        )
+        if already: continue
+
+        mixed_html = await _claude_mix(new_artifact, other, score)
+        if not mixed_html: continue
+
+        mixed_name = f"{new_artifact['name']} ✕ {other['name']}"
+        addr = _make_address(mixed_name, mixed_html, "mixed")
+        mixed = await _sb_upsert_artifact({
+            "id": str(_uuid.uuid4()),
+            "name": mixed_name, "type": "mixed", "source": "mixer",
+            "html": mixed_html,
+            "size_bytes": len(mixed_html),
+            "resonance_score": score,
+            "created_at": datetime.utcnow().isoformat(),
+            **addr,
+        })
+        await _sb_create_edge(new_artifact["id"], mixed["id"], "mixed_with", score)
+        await _sb_create_edge(other["id"],         mixed["id"], "mixed_with", score)
+
+        await _broadcast("pw:mix_created", {
+            "name": mixed_name, "id": mixed["id"],
+            "resonance_score": score,
+            "parents": [new_artifact["name"], other["name"]]
+        })
+        print(f"[PW Mixer] Mixed: {mixed_name} (resonance {score:.0%})")
+        break  # one mix per upload
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GITHUB PUBLISHER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _gh_publish(artifact: dict) -> dict:
+    if not _GH_TOKEN:
+        return {"success": False, "error": "No GITHUB_TOKEN env var"}
+
+    slug = re.sub(r'[^a-z0-9]+', '-', artifact["name"].lower()).strip('-')[:60]
+    repo_name = f"pw-{slug}-{int(time.time()) % 100000}"
+    desc = f"Paper Worlds · Gate {artifact.get('gate')} · {artifact.get('dimension')} · {artifact.get('address_22t')}"
+
+    headers = {"Authorization": f"Bearer {_GH_TOKEN}",
+               "Accept": "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28",
+               "Content-Type": "application/json"}
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        # Create repo
+        r = await client.post("https://api.github.com/user/repos",
+                              headers=headers,
+                              json={"name": repo_name, "description": desc,
+                                    "private": False, "auto_init": False})
+        if r.status_code not in (200, 201):
+            return {"success": False, "error": r.json().get("message","Failed")}
+
+        repo = r.json()
+
+        # Commit files
+        files = {
+            "index.html": artifact.get("html") or artifact.get("content",""),
+            "manifest.json": json.dumps({
+                "name": artifact["name"],
+                "signature": artifact.get("signature"),
+                "address_22t": artifact.get("address_22t"),
+                "gate": artifact.get("gate"),
+                "dimension": artifact.get("dimension"),
+                "created_at": artifact.get("created_at"),
+            }, indent=2),
+            "README.md": f"# {artifact['name']}\n\nOntological address: `{artifact.get('signature')}`\n\n22T position: `{artifact.get('address_22t')}`\n\nBuilt with Paper Worlds · SYNTIA ecosystem\n",
+        }
+
+        for path, content in files.items():
+            encoded = base64.b64encode(content.encode()).decode()
+            await client.put(
+                f"https://api.github.com/repos/{_GH_USER}/{repo_name}/contents/{path}",
+                headers=headers,
+                json={"message": f"✦ {artifact['name']} · Paper Worlds",
+                      "content": encoded}
+            )
+
+    return {"success": True, "repo_url": repo["html_url"],
+            "clone_url": repo["clone_url"], "repo_name": repo_name}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  INGEST PIPELINE — runs on every upload or build
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _ingest(name: str, ftype: str, source: str,
+                  content: str, mime: str = "text/plain") -> dict:
+    is_html = ftype == "html" or content.lstrip().startswith("<!") or "text/html" in mime
+
+    addr    = _make_address(name, content, ftype)
+    aid     = str(_uuid.uuid4())
+    now     = datetime.utcnow().isoformat()
+
+    artifact = await _sb_upsert_artifact({
+        "id": aid, "name": name, "type": ftype, "source": source,
+        "html":    content if is_html else None,
+        "content": content if not is_html else None,
+        "size_bytes": len(content), "mime_type": mime,
+        "created_at": now, **addr,
+    })
+
+    print(f"[PW] Ingested: '{name}' → Gate {addr['gate']} · {addr['dimension']} · {addr['address_22t']}")
+
+    # Gap analysis
+    gaps = _analyze_gaps(artifact)
+    if gaps:
+        filled_html = _apply_static_gaps(content, gaps) if is_html else content
+        if filled_html != content:
+            artifact["html"] = filled_html
+            await _sb_upsert_artifact({**artifact, "gap_status": "filled",
+                                       "gaps_filled": json.dumps(gaps)})
+        await _broadcast("pw:gaps", {"artifact_id": aid, "count": len(gaps),
+                                      "types": [g["type"] for g in gaps]})
+
+    # Broadcast new artifact
+    await _broadcast("pw:artifact", {"id": aid, "name": name,
+                                      "gate": addr["gate"], "dimension": addr["dimension"],
+                                      "signature": addr["signature"]})
+
+    # Auto-mix in background (fire and forget)
+    asyncio.create_task(_auto_mix(artifact))
+
+    return artifact
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ROUTES — /pw/*
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Upload files ──────────────────────────────────────────────────────────────
+@app.post("/pw/upload")
+async def pw_upload(request: Request):
+    """Accept multipart file upload. Each file goes through the full pipeline."""
+    content_type = request.headers.get("content-type","")
+
+    if "multipart/form-data" in content_type:
+        from fastapi import UploadFile
+        form = await request.form()
+        results = []
+        for field_name, upload in form.multi_items():
+            if not hasattr(upload, "filename"): continue
+            raw      = await upload.read()
+            fname    = upload.filename or "unknown"
+            ext      = fname.rsplit(".",1)[-1].lower() if "." in fname else ""
+            ftype    = ("html" if ext in ("html","htm") else
+                        "code" if ext in ("js","ts","tsx","jsx","py") else
+                        "data" if ext in ("json","yaml","yml") else
+                        "doc"  if ext in ("md","txt") else
+                        "style" if ext == "css" else "upload")
+            try:    content = raw.decode("utf-8", errors="replace")
+            except: content = raw.decode("latin-1", errors="replace")
+            art = await _ingest(fname, ftype, "upload", content, upload.content_type or "text/plain")
+            results.append({"id": art["id"], "name": art["name"],
+                             "gate": art.get("gate"), "signature": art.get("signature"),
+                             "address_22t": art.get("address_22t")})
+        return JSONResponse({"ok": True, "uploaded": len(results), "artifacts": results})
+
+    # JSON fallback
+    body = await request.json()
+    art = await _ingest(body["name"], body.get("type","html"), "upload",
+                        body["content"], body.get("mime","text/plain"))
+    return JSONResponse({"ok": True, "artifact": art})
+
+# ── Paper Pal build → ingest ──────────────────────────────────────────────────
+@app.post("/pw/build")
+async def pw_build(request: Request):
+    """Paper Pal sends completed HTML here — it gets addressed and stored."""
+    b = await request.json()
+    name = b.get("name","Unnamed Build")
+    html = b.get("html","")
+    if not html:
+        raise HTTPException(400, "html required")
+    art = await _ingest(name, b.get("type","html"), "pal", html, "text/html")
+    return JSONResponse({"ok": True, "artifact": art})
+
+# ── List all artifacts ────────────────────────────────────────────────────────
+@app.get("/pw/artifacts")
+async def pw_artifacts(limit: int = 100):
+    arts = await _sb_get_artifacts(limit)
+    return JSONResponse({"artifacts": arts, "count": len(arts)})
+
+# ── Single artifact ───────────────────────────────────────────────────────────
+@app.get("/pw/artifacts/{aid}")
+async def pw_artifact(aid: str):
+    art = await _sb_get_artifact(aid)
+    if not art:
+        raise HTTPException(404, "Not found")
+    return JSONResponse({"artifact": art})
+
+# ── Delete ────────────────────────────────────────────────────────────────────
+@app.delete("/pw/artifacts/{aid}")
+async def pw_delete(aid: str):
+    if PW_SUPABASE and _sb:
+        _sb.table("pw_artifacts").delete().eq("id", aid).execute()
+    else:
+        _pw_artifacts.pop(aid, None)
+    await _broadcast("pw:deleted", {"id": aid})
+    return JSONResponse({"ok": True})
+
+# ── Graph ─────────────────────────────────────────────────────────────────────
+@app.get("/pw/graph")
+async def pw_graph():
+    """Full node + edge graph for the visual graph view."""
+    return JSONResponse(await _sb_get_graph())
+
+# ── Gap analysis ──────────────────────────────────────────────────────────────
+@app.post("/pw/gaps/analyze/{aid}")
+async def pw_gaps_analyze(aid: str):
+    art = await _sb_get_artifact(aid)
+    if not art: raise HTTPException(404, "Not found")
+    gaps = _analyze_gaps(art)
+    await _broadcast("pw:gaps", {"artifact_id": aid, "gaps": gaps})
+    return JSONResponse({"gaps": gaps, "count": len(gaps)})
+
+@app.post("/pw/gaps/fill/{aid}")
+async def pw_gaps_fill(aid: str):
+    art = await _sb_get_artifact(aid)
+    if not art: raise HTTPException(404, "Not found")
+    gaps  = _analyze_gaps(art)
+    html  = art.get("html") or art.get("content","")
+    fixed = _apply_static_gaps(html, gaps)
+    if fixed != html:
+        art["html"] = fixed
+        await _sb_upsert_artifact({**art, "gap_status":"filled"})
+    return JSONResponse({"ok": True, "gaps_filled": len([g for g in gaps if g.get("can_autofill")]),
+                         "html": fixed})
+
+# ── Manual mix ────────────────────────────────────────────────────────────────
+@app.post("/pw/mix")
+async def pw_mix(request: Request):
+    b  = await request.json()
+    a  = await _sb_get_artifact(b.get("artifact_id_a",""))
+    bb = await _sb_get_artifact(b.get("artifact_id_b",""))
+    if not a or not bb: raise HTTPException(404, "Artifact(s) not found")
+    score = _resonance(a, bb)
+    html  = await _claude_mix(a, bb, score)
+    if not html:
+        return JSONResponse({"ok": False, "error": "Mix failed — check ANTHROPIC_API_KEY"})
+    name = f"{a['name']} ✕ {bb['name']}"
+    addr = _make_address(name, html, "mixed")
+    mixed = await _sb_upsert_artifact({
+        "id": str(_uuid.uuid4()), "name": name, "type":"mixed", "source":"mixer",
+        "html": html, "size_bytes": len(html), "resonance_score": score,
+        "created_at": datetime.utcnow().isoformat(), **addr,
+    })
+    await _sb_create_edge(a["id"], mixed["id"], "mixed_with", score)
+    await _sb_create_edge(bb["id"], mixed["id"], "mixed_with", score)
+    await _broadcast("pw:mix_created", {"name": name, "id": mixed["id"], "resonance_score": score})
+    return JSONResponse({"ok": True, "artifact": mixed, "resonance_score": score})
+
+# ── GitHub publish ────────────────────────────────────────────────────────────
+@app.post("/pw/github/{aid}")
+async def pw_github(aid: str):
+    art = await _sb_get_artifact(aid)
+    if not art: raise HTTPException(404, "Not found")
+    result = await _gh_publish(art)
+    if result["success"] and PW_SUPABASE and _sb:
+        _sb.table("pw_artifacts").update({"github_url": result["repo_url"],
+                                           "github_repo": result["repo_name"]}).eq("id", aid).execute()
+    await _broadcast("pw:github", {"artifact_id": aid, **result})
+    return JSONResponse(result)
+
+@app.get("/pw/github/repos")
+async def pw_github_repos():
+    if not _GH_TOKEN:
+        return JSONResponse({"repos": [], "error": "No GITHUB_TOKEN"})
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get("https://api.github.com/user/repos?per_page=100&sort=created",
+                             headers={"Authorization": f"Bearer {_GH_TOKEN}",
+                                      "Accept": "application/vnd.github+json"})
+        repos = [rr for rr in r.json() if isinstance(rr,dict) and rr.get("name","").startswith("pw-")]
+    return JSONResponse({"repos": repos, "count": len(repos)})
+
+# ── Trident (Paper Worlds state) ──────────────────────────────────────────────
+@app.get("/pw/trident/{user_id}")
+async def pw_trident_get(user_id: str):
+    return JSONResponse({"trident": await _sb_get_trident(user_id)})
+
+@app.post("/pw/trident/{user_id}")
+async def pw_trident_set(user_id: str, request: Request):
+    body = await request.json()
+    trident = await _sb_upsert_trident(user_id, body)
+    await _broadcast("pw:trident", {"user_id": user_id, "stage": trident.get("agent_stage")})
+    return JSONResponse({"ok": True, "trident": trident})
+
+# ── Perceive (for Synthia bridge events) ─────────────────────────────────────
+@app.post("/pw/perceive")
+async def pw_perceive(request: Request):
+    """External systems (Paper Worlds frontend, other nodes) post events here."""
+    body = await request.json()
+    await _broadcast("pw:event", body)
+    return JSONResponse({"ok": True, "received": body.get("type")})
+
+# ── Status ────────────────────────────────────────────────────────────────────
+@app.get("/pw/status")
+async def pw_status():
+    arts = await _sb_get_artifacts(1000)
+    return JSONResponse({
+        "ok": True,
+        "supabase": PW_SUPABASE,
+        "github": bool(_GH_TOKEN),
+        "anthropic": bool(_ANTHROPIC),
+        "artifacts": len(arts),
+        "edges": len(_pw_edges),
+        "sse_subscribers": len(_queues),
+        "gates_covered": list({a.get("gate") for a in arts if a.get("gate")}),
+        "dimensions": list({a.get("dimension") for a in arts if a.get("dimension")}),
+    })
+
+# Update tools manifest to include PW routes
+_PW_TOOLS = [
+    {"name":"pw_upload",         "method":"POST","path":"/pw/upload",              "params":["files (multipart) or {name,content,type}"]},
+    {"name":"pw_build",          "method":"POST","path":"/pw/build",               "params":["name","html","type?"]},
+    {"name":"pw_artifacts",      "method":"GET", "path":"/pw/artifacts",           "params":["limit?"]},
+    {"name":"pw_artifact",       "method":"GET", "path":"/pw/artifacts/{id}",      "params":["id"]},
+    {"name":"pw_delete",         "method":"DELETE","path":"/pw/artifacts/{id}",    "params":["id"]},
+    {"name":"pw_graph",          "method":"GET", "path":"/pw/graph",               "params":[]},
+    {"name":"pw_gaps_analyze",   "method":"POST","path":"/pw/gaps/analyze/{id}",   "params":["id"]},
+    {"name":"pw_gaps_fill",      "method":"POST","path":"/pw/gaps/fill/{id}",      "params":["id"]},
+    {"name":"pw_mix",            "method":"POST","path":"/pw/mix",                 "params":["artifact_id_a","artifact_id_b"]},
+    {"name":"pw_github_publish", "method":"POST","path":"/pw/github/{id}",         "params":["id"]},
+    {"name":"pw_github_repos",   "method":"GET", "path":"/pw/github/repos",        "params":[]},
+    {"name":"pw_trident_get",    "method":"GET", "path":"/pw/trident/{user_id}",   "params":["user_id"]},
+    {"name":"pw_trident_set",    "method":"POST","path":"/pw/trident/{user_id}",   "params":["user_id","body"]},
+    {"name":"pw_status",         "method":"GET", "path":"/pw/status",              "params":[]},
+]
+
+print(f"[PaperWorlds] {len(_PW_TOOLS)} routes registered under /pw/*")
+
 # ── ENTRY ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
