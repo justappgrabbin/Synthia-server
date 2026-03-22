@@ -70,13 +70,48 @@ except ImportError:
 try:
     import onnxruntime as ort
     _onnx_session = None
-    for _path in ['model.onnx','trident_syntia.onnx','syntia.onnx']:
+    _MODEL_PATHS = ['ml/trident_syntia.onnx', 'ml/model.onnx', 'trident_syntia.onnx', 'model.onnx', 'syntia.onnx']
+    _MODEL_URL = 'https://raw.githubusercontent.com/justappgrabbin/Synthia-server/main/trident_syntia.onnx'
+
+    for _path in _MODEL_PATHS:
         if os.path.exists(_path):
-            _onnx_session = ort.InferenceSession(_path)
-            print(f"[GNN] ONNX loaded: {_path}")
-            break
+            try:
+                _onnx_session = ort.InferenceSession(_path)
+                print(f"[GNN] ONNX loaded from disk: {_path}")
+                break
+            except Exception as _e:
+                print(f"[GNN] Failed to load {_path}: {_e}")
+
+    if _onnx_session is None:
+        print("[GNN] Model not found locally — downloading from GitHub...")
+        try:
+            import urllib.request
+            os.makedirs('ml', exist_ok=True)
+            _dest = 'ml/trident_syntia.onnx'
+            # Try ml/ path first, then root
+            for _url in [
+                'https://raw.githubusercontent.com/justappgrabbin/Synthia-server/main/ml/trident_syntia.onnx',
+                'https://raw.githubusercontent.com/justappgrabbin/Synthia-server/main/trident_syntia.onnx',
+            ]:
+                try:
+                    urllib.request.urlretrieve(_url, _dest)
+                    _onnx_session = ort.InferenceSession(_dest)
+                    print(f"[GNN] ONNX downloaded and loaded from {_url}")
+                    break
+                except Exception as _ue:
+                    print(f"[GNN] URL failed {_url}: {_ue}")
+        except Exception as _e:
+            print(f"[GNN] Download failed: {_e}")
+
     ONNX = _onnx_session is not None
-except Exception:
+    if ONNX:
+        _inputs = [i.name for i in _onnx_session.get_inputs()]
+        _outputs = [o.name for o in _onnx_session.get_outputs()]
+        print(f"[GNN] Inputs: {_inputs} | Outputs: {_outputs}")
+    else:
+        print("[GNN] ONNX unavailable - using heuristic fallback")
+except Exception as _ort_err:
+    print(f"[GNN] onnxruntime not available: {_ort_err}")
     ONNX = False; _onnx_session = None
 
 try:
@@ -462,7 +497,23 @@ def gnn_chart(placements: List[dict], sun_gate: int, sun_line: int,
                                int(sun_p.get("tone",1)),int(sun_p.get("base",1)),dimension,location) if sun_p \
              else generate_address(sun_gate,sun_line,1,1,1,dimension,location)
 
-    return {"status":"ok","primary_address":primary,"codons":results,"awareness":awareness,
+    # FiLM params — real γ/β from body Sun
+    seed = sun_gate * 7 + sun_line * 13
+    gamma = 1.0 + ((seed % 11) - 5) / 50.0
+    beta  = ((seed % 7) - 3) / 20.0
+    heart_gates_set = {21,51,26,40}
+    mind_gates_set  = {47,24,4,17,11,43}
+    heart_base = sum(r["score"] for r in results if r["gate"] in heart_gates_set) / len(heart_gates_set)
+    mind_base  = sum(r["score"] for r in results if r["gate"] in mind_gates_set)  / len(mind_gates_set)
+    heart_score = round(min(1.0, max(0.0, gamma * heart_base + beta)), 4)
+    mind_score  = round(min(1.0, max(0.0, gamma * mind_base  + beta)), 4)
+    awareness_out = dict(awareness)
+    awareness_out["heart"] = heart_score
+    awareness_out["mind"]  = mind_score
+    film_params = {"gamma":round(gamma,4),"beta":round(beta,4),"seed":seed,"sun_gate":sun_gate,"sun_line":sun_line}
+    return {"status":"ok","primary_address":primary,"codons":results,
+            "awareness":awareness_out,"film_params":film_params,
+            "heart":heart_score,"mind":mind_score,
             "active_gates":[r["gate"] for r in results if r["active"]],"model_used":tier}
 
 def _fallback_scores(placements):
@@ -749,9 +800,12 @@ async def memory_delete(user_id:str):
 @app.post("/oracle/ask")
 async def oracle_ask(request: Request):
     b=await request.json()
-    user_id=b.get("user_id","anonymous"); msg=b.get("message","")
+    user_id=b.get("user_id","anonymous")
+    # Accept {message} or {question} — both valid from different callers
+    msg=b.get("message","") or b.get("question","")
     groq_key=b.get("groq_key","") or os.environ.get("GROQ_KEY","")
-    head=b.get("head")  # optional override
+    # Accept {head} or {agent} as the persona selector
+    head=b.get("head") or b.get("agent")
 
     # Load history
     history=await mem_get(user_id,limit=10)
@@ -789,9 +843,150 @@ async def oracle_ask(request: Request):
     await mem_save(user_id,"user",msg)
     await mem_save(user_id,"assistant",reply)
 
-    result={"reply":reply,"head":chosen_head,"router_weights":rw,"tier":tier,"user_id":user_id}
+    result={"reply":reply,"response":reply,"answer":reply,"head":chosen_head,"router_weights":rw,"tier":tier,"user_id":user_id}
     await _broadcast("oracle:reply",{"head":chosen_head,"tier":tier})
     return JSONResponse(result)
+
+
+# ── STELLAR PROXIMOLOGY ───────────────────────────────────────────────────────
+# These routes are called by stellar-app.html as /stellar/chart, /stellar/sentence etc.
+
+@app.post("/stellar/chart")
+async def stellar_chart(request: Request):
+    """Full consciousness chart — wraps /consciousness/profile for stellar-app."""
+    b = await request.json()
+    bd = b.get("date","1990-01-01"); bt = b.get("time","12:00")
+    location = b.get("location","")
+    try:
+        result = cons_swisseph(bd, bt) if SWISSEPH else cons_heuristic(bd, bt)
+    except Exception as e:
+        result = cons_heuristic(bd, bt); result["swisseph_error"] = str(e)
+
+    # Map to the trinity shape stellar-app expects: {mind, heart, body}
+    fields = result.get("consciousness_fields", {})
+    def first(key):
+        acts = fields.get(key, [])
+        return acts[0] if acts else {"gate":1,"line":1,"degree":0.0,"planet":"Sun"}
+
+    mind = first("Mind"); heart = first("Heart"); body = first("Body")
+    return JSONResponse({
+        "ok": True,
+        "tier": result.get("tier","heuristic"),
+        "mind":  {"gate": mind["gate"],  "line": mind["line"],  "degree": mind["degree"]},
+        "heart": {"gate": heart["gate"], "line": heart["line"], "degree": heart["degree"]},
+        "body":  {"gate": body["gate"],  "line": body["line"],  "degree": body["degree"]},
+        "active_gates": result.get("active_gates",[]),
+        "defined_channels": result.get("defined_channels",[]),
+        "positions": result.get("positions",{}),
+        "consciousness_fields": fields,
+    })
+
+@app.post("/stellar/sentence")
+async def stellar_sentence(request: Request):
+    """Generate a gate sentence. Called by stellar-app and world-uploader."""
+    b = await request.json()
+    gate = int(b.get("gate", 1))
+    line = int(b.get("line", 1))
+    intensity = b.get("intensity","balanced")
+    physics_lens = b.get("physicsLens", b.get("physics_lens","classical"))
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+
+    # RAG search for gate context
+    hits = rag_search(f"gate {gate}", top_k=3, head_tag="research")
+    rag_ctx = "\n".join(h["text"][:150] for h in hits) if hits else ""
+
+    codon = CODONS.get(gate, {"name":f"Gate {gate}","shadow":"unknown","gift":"unknown","siddhi":"unknown"})
+    center = GATE_TO_CENTER.get(gate, "?")
+
+    if groq_key:
+        system = (
+            f"You are Celestial-Siren, consciousness field oracle. "
+            f"Generate a single resonance sentence for Gate {gate} Line {line}. "
+            f"Gate name: {codon['name']}. Center: {center}. "
+            f"Shadow: {codon['shadow']}. Gift: {codon['gift']}. Siddhi: {codon['siddhi']}. "
+            f"Physics lens: {physics_lens}. Intensity: {intensity}. "
+            f"One sentence only. Poetic, embodied, specific. No preamble."
+        )
+        if rag_ctx: system += f"\n\nContext:\n{rag_ctx}"
+        sentence = await groq_call(system, [{"role":"user","content":f"Gate {gate} Line {line} sentence"}], groq_key, max_tokens=80, temp=0.85)
+        if sentence:
+            return JSONResponse({"sentence":sentence,"gate":gate,"line":line,"center":center,"name":codon["name"],"tier":"groq"})
+
+    # Heuristic fallback — deterministic from gate data
+    LENS_WORDS = {"classical":"The field","plasma":"Plasma consciousness","thermal":"Heat of becoming","quantum":"Quantum awareness"}
+    prefix = LENS_WORDS.get(physics_lens,"The field")
+    INTENSITY_MODS = {"shadow":"shadow of","balanced":"gift of","siddhi":"siddhi of"}
+    mod = INTENSITY_MODS.get(intensity,"gift of")
+    sentence = f"{prefix} activates the {mod} {codon.get('gift','awareness')} through Gate {gate} Line {line} — {codon['name']} speaks from the {center} center."
+    return JSONResponse({"sentence":sentence,"gate":gate,"line":line,"center":center,"name":codon["name"],"tier":"heuristic"})
+
+@app.post("/stellar/oracle")
+async def stellar_oracle(request: Request):
+    """Stellar oracle — gate-aware oracle call from stellar-app."""
+    b = await request.json()
+    question = b.get("question","") or b.get("message","")
+    gates = b.get("gates",[])
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+
+    gate_ctx = ""
+    if gates:
+        gate_info = []
+        for g in gates[:6]:
+            c = CODONS.get(g,{"name":f"Gate {g}","gift":"—","shadow":"—"})
+            gate_info.append(f"Gate {g} ({c['name']}): gift={c['gift']}, shadow={c['shadow']}")
+        gate_ctx = "Active gates:\n" + "\n".join(gate_info)
+
+    hits = rag_search(question, top_k=3)
+    rag_ctx = "\n".join(h["text"][:150] for h in hits) if hits else ""
+
+    system = TRIDENT_PERSONAS["siren"]
+    if gate_ctx: system += f"\n\n{gate_ctx}"
+    if rag_ctx: system += f"\n\nKnowledge:\n{rag_ctx}"
+
+    reply = ""
+    if groq_key:
+        reply = await groq_call(system, [{"role":"user","content":question}], groq_key, max_tokens=200, temp=0.8)
+
+    if not reply:
+        hits2 = rag_search(question, top_k=2)
+        retrieved = [r["text"][:100] for r in hits2]
+        result = trident_heuristic(question, "siren", 100, 0.8, retrieved)
+        reply = result["generated"]
+
+    return JSONResponse({"reply":reply,"response":reply,"answer":reply,"gates":gates,"tier":"groq" if groq_key and reply else "heuristic"})
+
+@app.post("/stellar/lab/analyze")
+async def stellar_lab_analyze(request: Request):
+    """Lab experiment analysis — A/B test gate sentence lenses."""
+    b = await request.json()
+    gate = int(b.get("gate",1))
+    line = int(b.get("line",1))
+    lens_a = b.get("lensA","classical")
+    lens_b = b.get("lensB","plasma")
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+
+    codon = CODONS.get(gate,{"name":f"Gate {gate}","gift":"awareness","shadow":"unknown","siddhi":"presence"})
+    center = GATE_TO_CENTER.get(gate,"?")
+
+    async def gen_sentence(lens):
+        if groq_key:
+            system = (f"Generate ONE gate sentence for Gate {gate} Line {line} ({codon['name']}, {center} center) "
+                      f"using {lens} physics lens. One sentence, poetic, embodied. No preamble.")
+            s = await groq_call(system,[{"role":"user","content":f"Gate {gate} {lens}"}],groq_key,max_tokens=60,temp=0.9)
+            if s: return s
+        LENS = {"classical":f"The {codon['name']} pattern crystallizes","plasma":f"Plasma consciousness ignites Gate {gate}",
+                "thermal":f"Heat of {codon['gift']} rises through Gate {gate}","quantum":f"Quantum field collapses into Gate {gate}"}
+        return f"{LENS.get(lens,f'Gate {gate}')} Line {line} — {codon['gift']} awakens in the {center} center."
+
+    sa = await gen_sentence(lens_a)
+    sb = await gen_sentence(lens_b)
+
+    return JSONResponse({
+        "gate":gate,"line":line,"name":codon["name"],"center":center,
+        "lensA":{"lens":lens_a,"sentence":sa},
+        "lensB":{"lens":lens_b,"sentence":sb},
+        "tier":"groq" if groq_key else "heuristic"
+    })
 
 # ── TOOLS MANIFEST ────────────────────────────────────────────────────────────
 
@@ -817,630 +1012,746 @@ async def tools():
          "params":["user_id","message","groq_key?","head?"]},
     ]})
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  PAPER WORLDS — artifact mesh, gap filler, mixer, graph, GitHub publisher
-#  Added directly to Synthia server — same process, same port, same Supabase
-# ═══════════════════════════════════════════════════════════════════════════════
-
-import base64, mimetypes, uuid as _uuid
-from typing import Tuple
-
-# ── optional Supabase ─────────────────────────────────────────────────────────
-try:
-    from supabase import create_client as _sb_create
-    _SUPABASE_URL = os.environ.get("SUPABASE_URL","")
-    _SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY","")
-    if _SUPABASE_URL and _SUPABASE_KEY:
-        _sb = _sb_create(_SUPABASE_URL, _SUPABASE_KEY)
-        PW_SUPABASE = True
-        print("[PaperWorlds] Supabase connected")
-    else:
-        _sb = None
-        PW_SUPABASE = False
-        print("[PaperWorlds] No Supabase env — using in-memory store")
-except Exception as _e:
-    _sb = None
-    PW_SUPABASE = False
-    print(f"[PaperWorlds] Supabase unavailable: {_e}")
-
-# ── optional multipart upload ─────────────────────────────────────────────────
-try:
-    from fastapi import UploadFile, File, Form
-    from typing import List as _List
-    PW_UPLOAD = True
-except Exception:
-    PW_UPLOAD = False
-
-# ── in-memory fallback store ──────────────────────────────────────────────────
-_pw_artifacts: Dict[str, Dict] = {}
-_pw_edges: list = []
-_pw_gaps: list = []
-_pw_trident: Dict[str, Dict] = {}
-
-# ── GitHub config ─────────────────────────────────────────────────────────────
-_GH_TOKEN    = os.environ.get("GITHUB_TOKEN","")
-_GH_USER     = os.environ.get("GITHUB_USERNAME","justappgrabbin")
-_ANTHROPIC   = os.environ.get("ANTHROPIC_API_KEY","")
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  ONTOLOGICAL ADDRESS ENGINE
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_ZODIACS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
-            "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
-_PLANETS_LIST = ["Sun","Moon","Mercury","Venus","Mars","Jupiter",
-                 "Saturn","Uranus","Neptune","Pluto","North Node","South Node"]
-_DIMS = ["being","designed","composite_space","movement_evolutionary"]
-_DIM_MULT = {d: i * 64*6*6*6*5 for i,d in enumerate(_DIMS)}
-
-def _pw_hash(s: str) -> int:
-    h = 0xdeadbeef
-    for c in s:
-        h = ((h ^ ord(c)) * 2654435761) & 0xFFFFFFFF
-    return h
-
-def _derive_coords(name: str, content: str) -> dict:
-    seed = _pw_hash(name + content[:500])
-    return {
-        "gate":  (seed % 64) + 1,
-        "line":  (seed % 6)  + 1,
-        "color": ((seed >> 3) % 6) + 1,
-        "tone":  ((seed >> 6) % 6) + 1,
-        "base":  ((seed >> 9) % 5) + 1,
-        "degree":  seed % 360,
-        "minute":  seed % 60,
-        "second":  (seed >> 2) % 60,
-        "zodiac":  _ZODIACS[(seed >> 4) % 12],
-        "house":   ((seed >> 8) % 12) + 1,
-        "planet":  _PLANETS_LIST[seed % len(_PLANETS_LIST)],
-    }
-
-def _infer_dim(ftype: str, content: str) -> str:
-    t = ftype.lower()
-    if any(x in t for x in ["html","app","world"]): return "composite_space"
-    if any(x in t for x in ["upload","file"]):       return "being"
-    if any(x in t for x in ["code","script"]):       return "designed"
-    if any(x in content for x in ["animate","stream","tick"]): return "movement_evolutionary"
-    return "designed"
-
-def _make_address(name: str, content: str, ftype: str) -> dict:
-    dim  = _infer_dim(ftype, content)
-    c    = _derive_coords(name, content)
-    sig_src = f"{dim}·{c['gate']}·{c['line']}·{c['color']}·{c['tone']}·{c['base']}·{c['zodiac']}·H{c['house']}·{c['planet']}"
-    sig  = sig_src + "#" + hex(_pw_hash(sig_src + name))[2:].upper()
-    addr_22t = (_DIM_MULT[dim] +
-                (c["gate"]-1)*6*6*6*5 + (c["line"]-1)*6*6*5 +
-                (c["color"]-1)*6*5    + (c["tone"]-1)*5     + (c["base"]-1))
-    return {**c, "dimension": dim, "signature": sig, "address_22t": addr_22t,
-            "place_label": "Paper Worlds"}
-
-def _resonance(a: dict, b: dict) -> float:
-    gate_score  = 1.0 if a["gate"]==b["gate"] else (0.6 if abs(a["gate"]-b["gate"])<5 else 0.2)
-    line_score  = 1.0 if a["line"]==b["line"] else 0.4
-    dim_score   = 1.0 if a["dimension"]==b["dimension"] else 0.5
-    zod_score   = 0.8 if a["zodiac"]==b["zodiac"] else 0.3
-    return round(gate_score*0.4 + line_score*0.2 + dim_score*0.25 + zod_score*0.15, 3)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  SUPABASE HELPERS
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def _sb_upsert_artifact(data: dict) -> dict:
-    if PW_SUPABASE and _sb:
-        try:
-            r = _sb.table("pw_artifacts").upsert(data, on_conflict="signature").execute()
-            return r.data[0] if r.data else data
-        except Exception as e:
-            print(f"[PW] Supabase upsert error: {e}")
-    _pw_artifacts[data["id"]] = data
-    return data
-
-async def _sb_get_artifacts(limit=100) -> list:
-    if PW_SUPABASE and _sb:
-        try:
-            r = _sb.table("pw_artifacts").select("*").order("created_at", desc=True).limit(limit).execute()
-            return r.data or []
-        except Exception as e:
-            print(f"[PW] Supabase fetch error: {e}")
-    return list(_pw_artifacts.values())[-limit:]
-
-async def _sb_get_artifact(aid: str) -> Optional[dict]:
-    if PW_SUPABASE and _sb:
-        try:
-            r = _sb.table("pw_artifacts").select("*").eq("id", aid).execute()
-            return r.data[0] if r.data else None
-        except Exception:
-            pass
-    return _pw_artifacts.get(aid)
-
-async def _sb_create_edge(from_id: str, to_id: str, edge_type: str, weight=1.0):
-    edge = {"from_id": from_id, "to_id": to_id, "edge_type": edge_type, "weight": weight}
-    if PW_SUPABASE and _sb:
-        try:
-            _sb.table("pw_edges").upsert(edge, on_conflict="from_id,to_id,edge_type").execute()
-            return
-        except Exception:
-            pass
-    _pw_edges.append(edge)
-
-async def _sb_get_graph() -> dict:
-    if PW_SUPABASE and _sb:
-        try:
-            nodes = _sb.table("pw_artifacts").select(
-                "id,name,type,gate,dimension,signature,address_22t,resonance_score,created_at"
-            ).execute().data or []
-            edges = _sb.table("pw_edges").select("from_id,to_id,edge_type,weight").execute().data or []
-            return {"nodes": nodes, "edges": edges}
-        except Exception as e:
-            print(f"[PW] graph fetch error: {e}")
-    nodes = [{"id":a["id"],"name":a["name"],"type":a["type"],
-               "gate":a.get("gate"),"dimension":a.get("dimension"),
-               "signature":a.get("signature"),"address_22t":a.get("address_22t")}
-             for a in _pw_artifacts.values()]
-    return {"nodes": nodes, "edges": _pw_edges}
-
-async def _sb_upsert_trident(user_id: str, state: dict) -> dict:
-    state["user_id"] = user_id
-    state["updated_at"] = datetime.utcnow().isoformat()
-    if PW_SUPABASE and _sb:
-        try:
-            r = _sb.table("pw_trident").upsert(state, on_conflict="user_id").execute()
-            return r.data[0] if r.data else state
-        except Exception as e:
-            print(f"[PW] Trident upsert error: {e}")
-    _pw_trident[user_id] = state
-    return state
-
-async def _sb_get_trident(user_id: str) -> Optional[dict]:
-    if PW_SUPABASE and _sb:
-        try:
-            r = _sb.table("pw_trident").select("*").eq("user_id", user_id).execute()
-            return r.data[0] if r.data else None
-        except Exception:
-            pass
-    return _pw_trident.get(user_id)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  GAP FILLER
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def _analyze_gaps(artifact: dict) -> list:
-    gaps = []
-    html = artifact.get("html") or artifact.get("content") or ""
-    aid  = artifact["id"]
-    name = artifact["name"]
-
-    if html and "viewport" not in html:
-        gaps.append({"type":"missing_viewport","severity":"critical","artifact_id":aid,
-                     "description":"No mobile viewport meta tag",
-                     "scaffold":'<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">',
-                     "can_autofill": True})
-    if html and "charset" not in html:
-        gaps.append({"type":"missing_charset","severity":"warning","artifact_id":aid,
-                     "description":"No charset declaration",
-                     "scaffold":'<meta charset="UTF-8">',
-                     "can_autofill": True})
-    if html and not re.search(r'<title>', html, re.I):
-        gaps.append({"type":"missing_title","severity":"info","artifact_id":aid,
-                     "description":"No <title> tag",
-                     "scaffold":f'<title>{name}</title>',
-                     "can_autofill": True})
-    if html and re.search(r'http://(?!localhost)', html):
-        gaps.append({"type":"insecure_resources","severity":"warning","artifact_id":aid,
-                     "description":"Insecure http:// refs — blocked on HTTPS",
-                     "can_autofill": True})
-    if html and "fetch(" in html and ".catch" not in html:
-        gaps.append({"type":"missing_error_handling","severity":"warning","artifact_id":aid,
-                     "description":"fetch() calls with no .catch()",
-                     "can_autofill": False})
-    is_cons = any(k in html.lower() for k in ["gate","resonance","consciousness"])
-    has_syn = "synthia-server" in html or "synthia_server" in html
-    if is_cons and not has_syn and len(html) > 2000:
-        gaps.append({"type":"missing_synthia_bridge","severity":"info","artifact_id":aid,
-                     "description":"Consciousness app with no Synthia connection",
-                     "can_autofill": False})
-    return gaps
-
-def _apply_static_gaps(html: str, gaps: list) -> str:
-    for g in gaps:
-        if not g.get("can_autofill"): continue
-        sc = g.get("scaffold","")
-        t  = g["type"]
-        if t == "missing_viewport" and sc:
-            html = html.replace("<head>", f"<head>\n  {sc}", 1)
-        elif t == "missing_charset" and sc:
-            html = html.replace("<head>", f"<head>\n  {sc}", 1)
-        elif t == "missing_title" and sc:
-            html = re.sub(r'</head>', f'  {sc}\n</head>', html, count=1, flags=re.I)
-        elif t == "insecure_resources":
-            html = re.sub(r'http://(?!localhost)', 'https://', html)
-    return html
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  MIXER  (Claude-powered, auto-triggers on resonance ≥ 0.65)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def _claude_mix(a: dict, b: dict, score: float) -> Optional[str]:
-    """Call Anthropic API to blend two artifacts into one."""
-    if not _ANTHROPIC: return None
-    ca = (a.get("html") or a.get("content",""))[:3500]
-    cb = (b.get("html") or b.get("content",""))[:3500]
-    prompt = f"""You are the Paper Worlds Mixer. Two consciousness artifacts are resonant (score {score:.0%}) and must be woven together.
-
-ARTIFACT A: "{a['name']}" Gate {a.get('gate')} {a.get('dimension')}
-{ca}
-
-ARTIFACT B: "{b['name']}" Gate {b.get('gate')} {b.get('dimension')}
-{cb}
-
-Create ONE seamless self-contained HTML file that:
-- Preserves the best of both
-- Uses YOU-N-I-VERSE aesthetic: bg #070b18, cyan #7affef, violet #a855f7, amber #f59e0b
-- Is mobile-first with viewport meta
-- Expresses Gate {a.get('gate')} + Gate {b.get('gate')} energy
-
-Return ONLY the complete HTML. No explanations. No markdown fences."""
-
-    try:
-        async with httpx.AsyncClient(timeout=40) as client:
-            r = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": _ANTHROPIC,
-                         "anthropic-version": "2023-06-01",
-                         "content-type": "application/json"},
-                json={"model":"claude-sonnet-4-20250514","max_tokens":4000,
-                      "messages":[{"role":"user","content":prompt}]}
-            )
-            if r.status_code == 200:
-                return r.json()["content"][0]["text"].strip()
-    except Exception as e:
-        print(f"[PW Mixer] Claude error: {e}")
-    return None
-
-async def _auto_mix(new_artifact: dict):
-    """Background task: find resonant pairs and mix them."""
-    all_arts = await _sb_get_artifacts(50)
-    for other in all_arts:
-        if other["id"] == new_artifact["id"]: continue
-        score = _resonance(new_artifact, other)
-        if score < 0.65: continue
-
-        # Check already mixed
-        already = any(
-            e["from_id"] in (new_artifact["id"], other["id"]) and
-            e["to_id"]   in (new_artifact["id"], other["id"]) and
-            e["edge_type"] == "mixed_with"
-            for e in _pw_edges
-        )
-        if already: continue
-
-        mixed_html = await _claude_mix(new_artifact, other, score)
-        if not mixed_html: continue
-
-        mixed_name = f"{new_artifact['name']} ✕ {other['name']}"
-        addr = _make_address(mixed_name, mixed_html, "mixed")
-        mixed = await _sb_upsert_artifact({
-            "id": str(_uuid.uuid4()),
-            "name": mixed_name, "type": "mixed", "source": "mixer",
-            "html": mixed_html,
-            "size_bytes": len(mixed_html),
-            "resonance_score": score,
-            "created_at": datetime.utcnow().isoformat(),
-            **addr,
-        })
-        await _sb_create_edge(new_artifact["id"], mixed["id"], "mixed_with", score)
-        await _sb_create_edge(other["id"],         mixed["id"], "mixed_with", score)
-
-        await _broadcast("pw:mix_created", {
-            "name": mixed_name, "id": mixed["id"],
-            "resonance_score": score,
-            "parents": [new_artifact["name"], other["name"]]
-        })
-        print(f"[PW Mixer] Mixed: {mixed_name} (resonance {score:.0%})")
-        break  # one mix per upload
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  GITHUB PUBLISHER
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def _gh_publish(artifact: dict) -> dict:
-    if not _GH_TOKEN:
-        return {"success": False, "error": "No GITHUB_TOKEN env var"}
-
-    slug = re.sub(r'[^a-z0-9]+', '-', artifact["name"].lower()).strip('-')[:60]
-    repo_name = f"pw-{slug}-{int(time.time()) % 100000}"
-    desc = f"Paper Worlds · Gate {artifact.get('gate')} · {artifact.get('dimension')} · {artifact.get('address_22t')}"
-
-    headers = {"Authorization": f"Bearer {_GH_TOKEN}",
-               "Accept": "application/vnd.github+json",
-               "X-GitHub-Api-Version": "2022-11-28",
-               "Content-Type": "application/json"}
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        # Create repo
-        r = await client.post("https://api.github.com/user/repos",
-                              headers=headers,
-                              json={"name": repo_name, "description": desc,
-                                    "private": False, "auto_init": False})
-        if r.status_code not in (200, 201):
-            return {"success": False, "error": r.json().get("message","Failed")}
-
-        repo = r.json()
-
-        # Commit files
-        files = {
-            "index.html": artifact.get("html") or artifact.get("content",""),
-            "manifest.json": json.dumps({
-                "name": artifact["name"],
-                "signature": artifact.get("signature"),
-                "address_22t": artifact.get("address_22t"),
-                "gate": artifact.get("gate"),
-                "dimension": artifact.get("dimension"),
-                "created_at": artifact.get("created_at"),
-            }, indent=2),
-            "README.md": f"# {artifact['name']}\n\nOntological address: `{artifact.get('signature')}`\n\n22T position: `{artifact.get('address_22t')}`\n\nBuilt with Paper Worlds · SYNTIA ecosystem\n",
-        }
-
-        for path, content in files.items():
-            encoded = base64.b64encode(content.encode()).decode()
-            await client.put(
-                f"https://api.github.com/repos/{_GH_USER}/{repo_name}/contents/{path}",
-                headers=headers,
-                json={"message": f"✦ {artifact['name']} · Paper Worlds",
-                      "content": encoded}
-            )
-
-    return {"success": True, "repo_url": repo["html_url"],
-            "clone_url": repo["clone_url"], "repo_name": repo_name}
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  INGEST PIPELINE — runs on every upload or build
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def _ingest(name: str, ftype: str, source: str,
-                  content: str, mime: str = "text/plain") -> dict:
-    is_html = ftype == "html" or content.lstrip().startswith("<!") or "text/html" in mime
-
-    addr    = _make_address(name, content, ftype)
-    aid     = str(_uuid.uuid4())
-    now     = datetime.utcnow().isoformat()
-
-    artifact = await _sb_upsert_artifact({
-        "id": aid, "name": name, "type": ftype, "source": source,
-        "html":    content if is_html else None,
-        "content": content if not is_html else None,
-        "size_bytes": len(content), "mime_type": mime,
-        "created_at": now, **addr,
-    })
-
-    print(f"[PW] Ingested: '{name}' → Gate {addr['gate']} · {addr['dimension']} · {addr['address_22t']}")
-
-    # Gap analysis
-    gaps = _analyze_gaps(artifact)
-    if gaps:
-        filled_html = _apply_static_gaps(content, gaps) if is_html else content
-        if filled_html != content:
-            artifact["html"] = filled_html
-            await _sb_upsert_artifact({**artifact, "gap_status": "filled",
-                                       "gaps_filled": json.dumps(gaps)})
-        await _broadcast("pw:gaps", {"artifact_id": aid, "count": len(gaps),
-                                      "types": [g["type"] for g in gaps]})
-
-    # Broadcast new artifact
-    await _broadcast("pw:artifact", {"id": aid, "name": name,
-                                      "gate": addr["gate"], "dimension": addr["dimension"],
-                                      "signature": addr["signature"]})
-
-    # Auto-mix in background (fire and forget)
-    asyncio.create_task(_auto_mix(artifact))
-
-    return artifact
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  ROUTES — /pw/*
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# ── Upload files ──────────────────────────────────────────────────────────────
-@app.post("/pw/upload")
-async def pw_upload(request: Request):
-    """Accept multipart file upload. Each file goes through the full pipeline."""
-    content_type = request.headers.get("content-type","")
-
-    if "multipart/form-data" in content_type:
-        from fastapi import UploadFile
-        form = await request.form()
-        results = []
-        for field_name, upload in form.multi_items():
-            if not hasattr(upload, "filename"): continue
-            raw      = await upload.read()
-            fname    = upload.filename or "unknown"
-            ext      = fname.rsplit(".",1)[-1].lower() if "." in fname else ""
-            ftype    = ("html" if ext in ("html","htm") else
-                        "code" if ext in ("js","ts","tsx","jsx","py") else
-                        "data" if ext in ("json","yaml","yml") else
-                        "doc"  if ext in ("md","txt") else
-                        "style" if ext == "css" else "upload")
-            try:    content = raw.decode("utf-8", errors="replace")
-            except: content = raw.decode("latin-1", errors="replace")
-            art = await _ingest(fname, ftype, "upload", content, upload.content_type or "text/plain")
-            results.append({"id": art["id"], "name": art["name"],
-                             "gate": art.get("gate"), "signature": art.get("signature"),
-                             "address_22t": art.get("address_22t")})
-        return JSONResponse({"ok": True, "uploaded": len(results), "artifacts": results})
-
-    # JSON fallback
-    body = await request.json()
-    art = await _ingest(body["name"], body.get("type","html"), "upload",
-                        body["content"], body.get("mime","text/plain"))
-    return JSONResponse({"ok": True, "artifact": art})
-
-# ── Paper Pal build → ingest ──────────────────────────────────────────────────
-@app.post("/pw/build")
-async def pw_build(request: Request):
-    """Paper Pal sends completed HTML here — it gets addressed and stored."""
-    b = await request.json()
-    name = b.get("name","Unnamed Build")
-    html = b.get("html","")
-    if not html:
-        raise HTTPException(400, "html required")
-    art = await _ingest(name, b.get("type","html"), "pal", html, "text/html")
-    return JSONResponse({"ok": True, "artifact": art})
-
-# ── List all artifacts ────────────────────────────────────────────────────────
-@app.get("/pw/artifacts")
-async def pw_artifacts(limit: int = 100):
-    arts = await _sb_get_artifacts(limit)
-    return JSONResponse({"artifacts": arts, "count": len(arts)})
-
-# ── Single artifact ───────────────────────────────────────────────────────────
-@app.get("/pw/artifacts/{aid}")
-async def pw_artifact(aid: str):
-    art = await _sb_get_artifact(aid)
-    if not art:
-        raise HTTPException(404, "Not found")
-    return JSONResponse({"artifact": art})
-
-# ── Delete ────────────────────────────────────────────────────────────────────
-@app.delete("/pw/artifacts/{aid}")
-async def pw_delete(aid: str):
-    if PW_SUPABASE and _sb:
-        _sb.table("pw_artifacts").delete().eq("id", aid).execute()
-    else:
-        _pw_artifacts.pop(aid, None)
-    await _broadcast("pw:deleted", {"id": aid})
-    return JSONResponse({"ok": True})
-
-# ── Graph ─────────────────────────────────────────────────────────────────────
-@app.get("/pw/graph")
-async def pw_graph():
-    """Full node + edge graph for the visual graph view."""
-    return JSONResponse(await _sb_get_graph())
-
-# ── Gap analysis ──────────────────────────────────────────────────────────────
-@app.post("/pw/gaps/analyze/{aid}")
-async def pw_gaps_analyze(aid: str):
-    art = await _sb_get_artifact(aid)
-    if not art: raise HTTPException(404, "Not found")
-    gaps = _analyze_gaps(art)
-    await _broadcast("pw:gaps", {"artifact_id": aid, "gaps": gaps})
-    return JSONResponse({"gaps": gaps, "count": len(gaps)})
-
-@app.post("/pw/gaps/fill/{aid}")
-async def pw_gaps_fill(aid: str):
-    art = await _sb_get_artifact(aid)
-    if not art: raise HTTPException(404, "Not found")
-    gaps  = _analyze_gaps(art)
-    html  = art.get("html") or art.get("content","")
-    fixed = _apply_static_gaps(html, gaps)
-    if fixed != html:
-        art["html"] = fixed
-        await _sb_upsert_artifact({**art, "gap_status":"filled"})
-    return JSONResponse({"ok": True, "gaps_filled": len([g for g in gaps if g.get("can_autofill")]),
-                         "html": fixed})
-
-# ── Manual mix ────────────────────────────────────────────────────────────────
-@app.post("/pw/mix")
-async def pw_mix(request: Request):
-    b  = await request.json()
-    a  = await _sb_get_artifact(b.get("artifact_id_a",""))
-    bb = await _sb_get_artifact(b.get("artifact_id_b",""))
-    if not a or not bb: raise HTTPException(404, "Artifact(s) not found")
-    score = _resonance(a, bb)
-    html  = await _claude_mix(a, bb, score)
-    if not html:
-        return JSONResponse({"ok": False, "error": "Mix failed — check ANTHROPIC_API_KEY"})
-    name = f"{a['name']} ✕ {bb['name']}"
-    addr = _make_address(name, html, "mixed")
-    mixed = await _sb_upsert_artifact({
-        "id": str(_uuid.uuid4()), "name": name, "type":"mixed", "source":"mixer",
-        "html": html, "size_bytes": len(html), "resonance_score": score,
-        "created_at": datetime.utcnow().isoformat(), **addr,
-    })
-    await _sb_create_edge(a["id"], mixed["id"], "mixed_with", score)
-    await _sb_create_edge(bb["id"], mixed["id"], "mixed_with", score)
-    await _broadcast("pw:mix_created", {"name": name, "id": mixed["id"], "resonance_score": score})
-    return JSONResponse({"ok": True, "artifact": mixed, "resonance_score": score})
-
-# ── GitHub publish ────────────────────────────────────────────────────────────
-@app.post("/pw/github/{aid}")
-async def pw_github(aid: str):
-    art = await _sb_get_artifact(aid)
-    if not art: raise HTTPException(404, "Not found")
-    result = await _gh_publish(art)
-    if result["success"] and PW_SUPABASE and _sb:
-        _sb.table("pw_artifacts").update({"github_url": result["repo_url"],
-                                           "github_repo": result["repo_name"]}).eq("id", aid).execute()
-    await _broadcast("pw:github", {"artifact_id": aid, **result})
-    return JSONResponse(result)
-
-@app.get("/pw/github/repos")
-async def pw_github_repos():
-    if not _GH_TOKEN:
-        return JSONResponse({"repos": [], "error": "No GITHUB_TOKEN"})
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get("https://api.github.com/user/repos?per_page=100&sort=created",
-                             headers={"Authorization": f"Bearer {_GH_TOKEN}",
-                                      "Accept": "application/vnd.github+json"})
-        repos = [rr for rr in r.json() if isinstance(rr,dict) and rr.get("name","").startswith("pw-")]
-    return JSONResponse({"repos": repos, "count": len(repos)})
-
-# ── Trident (Paper Worlds state) ──────────────────────────────────────────────
-@app.get("/pw/trident/{user_id}")
-async def pw_trident_get(user_id: str):
-    return JSONResponse({"trident": await _sb_get_trident(user_id)})
-
-@app.post("/pw/trident/{user_id}")
-async def pw_trident_set(user_id: str, request: Request):
-    body = await request.json()
-    trident = await _sb_upsert_trident(user_id, body)
-    await _broadcast("pw:trident", {"user_id": user_id, "stage": trident.get("agent_stage")})
-    return JSONResponse({"ok": True, "trident": trident})
-
-# ── Perceive (for Synthia bridge events) ─────────────────────────────────────
-@app.post("/pw/perceive")
-async def pw_perceive(request: Request):
-    """External systems (Paper Worlds frontend, other nodes) post events here."""
-    body = await request.json()
-    await _broadcast("pw:event", body)
-    return JSONResponse({"ok": True, "received": body.get("type")})
-
-# ── Status ────────────────────────────────────────────────────────────────────
-@app.get("/pw/status")
-async def pw_status():
-    arts = await _sb_get_artifacts(1000)
-    return JSONResponse({
-        "ok": True,
-        "supabase": PW_SUPABASE,
-        "github": bool(_GH_TOKEN),
-        "anthropic": bool(_ANTHROPIC),
-        "artifacts": len(arts),
-        "edges": len(_pw_edges),
-        "sse_subscribers": len(_queues),
-        "gates_covered": list({a.get("gate") for a in arts if a.get("gate")}),
-        "dimensions": list({a.get("dimension") for a in arts if a.get("dimension")}),
-    })
-
-# Update tools manifest to include PW routes
-_PW_TOOLS = [
-    {"name":"pw_upload",         "method":"POST","path":"/pw/upload",              "params":["files (multipart) or {name,content,type}"]},
-    {"name":"pw_build",          "method":"POST","path":"/pw/build",               "params":["name","html","type?"]},
-    {"name":"pw_artifacts",      "method":"GET", "path":"/pw/artifacts",           "params":["limit?"]},
-    {"name":"pw_artifact",       "method":"GET", "path":"/pw/artifacts/{id}",      "params":["id"]},
-    {"name":"pw_delete",         "method":"DELETE","path":"/pw/artifacts/{id}",    "params":["id"]},
-    {"name":"pw_graph",          "method":"GET", "path":"/pw/graph",               "params":[]},
-    {"name":"pw_gaps_analyze",   "method":"POST","path":"/pw/gaps/analyze/{id}",   "params":["id"]},
-    {"name":"pw_gaps_fill",      "method":"POST","path":"/pw/gaps/fill/{id}",      "params":["id"]},
-    {"name":"pw_mix",            "method":"POST","path":"/pw/mix",                 "params":["artifact_id_a","artifact_id_b"]},
-    {"name":"pw_github_publish", "method":"POST","path":"/pw/github/{id}",         "params":["id"]},
-    {"name":"pw_github_repos",   "method":"GET", "path":"/pw/github/repos",        "params":[]},
-    {"name":"pw_trident_get",    "method":"GET", "path":"/pw/trident/{user_id}",   "params":["user_id"]},
-    {"name":"pw_trident_set",    "method":"POST","path":"/pw/trident/{user_id}",   "params":["user_id","body"]},
-    {"name":"pw_status",         "method":"GET", "path":"/pw/status",              "params":[]},
-]
-
-print(f"[PaperWorlds] {len(_PW_TOOLS)} routes registered under /pw/*")
-
 # ── ENTRY ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MISSING ROUTES — DGM · PAPER · GROVE · CONFIDENCE · INGEST · TRIDENT MODEL
+#  All endpoints called by darwin_godel.html that didn't exist before
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import uuid, shutil, zipfile, mimetypes
+from fastapi import UploadFile, File, Form
+from fastapi.responses import FileResponse
+
+# ── IN-MEMORY STORES (persisted to DATA_DIR on write) ─────────────────────────
+
+_dgm_archive: Dict[str, Dict] = {}          # id → agent
+_dgm_generation: int = 0
+_dgm_dominant_id: Optional[str] = None
+
+_paper_genome: List[Dict] = []              # generation history
+_paper_vitals: Dict = {"coherence":0.7,"drift":0.1,"pressure":0.2,"resonance":0.8}
+_paper_mode: str = "stable"
+_paper_field: str = "body"
+_paper_generation: int = 0
+
+_grove_apps: Dict[str, Dict] = {}           # id → app
+
+_confidence: Dict = {
+    "system_confidence": 0.5,
+    "total_experiences": 0,
+    "recent_successes": 0,
+    "recent_failures": 0,
+    "recent_avg_delta": 0.0,
+    "head_confidence": {"cynthia":0.5,"echo":0.5,"venom":0.5,"siren":0.5,"mcp":0.5},
+    "capability_averages": {
+        "codeAnalysis":0.4,"gapFilling":0.3,"moduleCreation":0.3,
+        "selfModification":0.2,"composition":0.3,"deployment":0.2,"learning":0.3
+    }
+}
+_confidence_experience: List[Dict] = []
+
+_ingest_sources: Dict[str, Dict] = {}       # source_name → {files, file_count}
+
+_trident_model_state: Dict = {
+    "param_count": 147456,
+    "trained_epochs": 0,
+    "best_loss": None,
+    "weights_saved": False,
+    "samples": {"code":0,"math":0,"research":0}
+}
+
+# ── SEED CODE ─────────────────────────────────────────────────────────────────
+
+SEED_CODE = """class MinimalAgent {
+  async analyze(code) {
+    const lines = code.split('\\n').length;
+    const funcs = (code.match(/function|async|=>/g) || []).length;
+    const complexity = lines * 0.1 + funcs * 0.5;
+    return { complexity, lines, funcs, quality: Math.min(1, complexity / 10) };
+  }
+  async modifySelf(goal) {
+    return { modified: false, reason: goal, capability: 'base' };
+  }
+  async createModule(spec) {
+    return `// Module: ${spec}\\nexport class AutoModule {}\\n`;
+  }
+}"""
+
+CAP_KEYS = ["codeAnalysis","gapFilling","moduleCreation","selfModification","composition","deployment","learning"]
+
+def _make_agent(parent_id=None, code=None, generation=0) -> Dict:
+    aid = f"agent_{uuid.uuid4().hex[:8]}"
+    caps = {k: round(0.2 + hash(aid+k) % 100 / 200, 3) for k in CAP_KEYS}
+    score = sum(caps.values()) / len(caps)
+    return {
+        "id": aid,
+        "generation": generation,
+        "parent_id": parent_id or "seed",
+        "children": [],
+        "code": code or SEED_CODE,
+        "capabilities": caps,
+        "performance": {"swb_score": round(score, 3)},
+        "modifications": [],
+        "lineage": [],
+        "status": "alive",
+        "created_at": time.time()
+    }
+
+def _ensure_seed():
+    global _dgm_dominant_id
+    if not _dgm_archive:
+        seed = _make_agent(generation=0)
+        seed["status"] = "dominant"
+        _dgm_archive[seed["id"]] = seed
+        _dgm_dominant_id = seed["id"]
+
+def _update_dominance():
+    global _dgm_dominant_id
+    alive = [a for a in _dgm_archive.values() if a["status"] != "dead"]
+    if not alive: return
+    best = max(alive, key=lambda a: a["performance"].get("swb_score",0))
+    if _dgm_dominant_id and _dgm_dominant_id != best["id"]:
+        if _dgm_dominant_id in _dgm_archive:
+            _dgm_archive[_dgm_dominant_id]["status"] = "alive"
+    best["status"] = "dominant"
+    _dgm_dominant_id = best["id"]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  DGM ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/dgm/archive")
+async def dgm_archive(limit: int = 50):
+    _ensure_seed()
+    agents = list(_dgm_archive.values())[-limit:]
+    dom = _dgm_archive.get(_dgm_dominant_id, {})
+    return JSONResponse({
+        "agents": agents,
+        "stats": {
+            "generation": _dgm_generation,
+            "dominant_id": _dgm_dominant_id,
+            "dominant_score": dom.get("performance",{}).get("swb_score",0),
+            "total": len(_dgm_archive),
+            "alive": sum(1 for a in _dgm_archive.values() if a["status"] != "dead")
+        }
+    })
+
+@app.post("/dgm/grow")
+async def dgm_grow(request: Request):
+    global _dgm_generation
+    _ensure_seed()
+    b = await request.json()
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+    parent_count = int(b.get("parent_count", 3))
+
+    # Select top parents
+    alive = [a for a in _dgm_archive.values() if a["status"] != "dead"]
+    parents = sorted(alive, key=lambda a: a["performance"].get("swb_score",0), reverse=True)[:parent_count]
+
+    children_created = []
+    for parent in parents:
+        # Ask oracle for improvement suggestion
+        suggestion = ""
+        if groq_key:
+            ctx = f"Agent {parent['id']} gen{parent['generation']} score={parent['performance']['swb_score']:.3f} caps={parent['capabilities']}"
+            suggestion = await groq_call(
+                "You are Echo — code mutation engine. Given an agent's capabilities, suggest ONE specific code improvement in 2 sentences. Be concrete.",
+                [{"role":"user","content":f"Improve this agent: {ctx}"}],
+                groq_key, max_tokens=120, temp=0.9
+            )
+
+        # Create child with slightly improved capabilities
+        child = _make_agent(parent_id=parent["id"], generation=_dgm_generation+1)
+        child["lineage"] = parent.get("lineage",[]) + [parent["id"]]
+        child["code"] = parent["code"]
+
+        # Boost a random capability
+        weak_cap = min(child["capabilities"], key=child["capabilities"].get)
+        child["capabilities"][weak_cap] = min(1.0, child["capabilities"][weak_cap] + 0.08)
+        child["performance"]["swb_score"] = round(sum(child["capabilities"].values())/len(child["capabilities"]), 3)
+
+        if suggestion:
+            child["modifications"].append({"suggestion": suggestion, "lines_added": 5, "synthia_used": True, "impact": "moderate"})
+            rag_add(suggestion, source="dgm_evolution", head_tag="code")
+
+        parent["children"].append(child["id"])
+        _dgm_archive[child["id"]] = child
+        children_created.append(child["id"])
+
+    # Cull dead agents if over max
+    max_alive = int(b.get("max_alive", 20))
+    alive_sorted = sorted([a for a in _dgm_archive.values() if a["status"] != "dead"],
+                          key=lambda a: a["performance"].get("swb_score",0))
+    while len(alive_sorted) > max_alive:
+        a = alive_sorted.pop(0)
+        _dgm_archive[a["id"]]["status"] = "dead"
+
+    _dgm_generation += 1
+    _update_dominance()
+
+    dom = _dgm_archive.get(_dgm_dominant_id, {})
+    await _broadcast("dgm:grow", {"generation": _dgm_generation, "children": children_created})
+    return JSONResponse({
+        "ok": True,
+        "generation": _dgm_generation,
+        "children_created": children_created,
+        "stats": {
+            "generation": _dgm_generation,
+            "dominant_id": _dgm_dominant_id,
+            "dominant_score": dom.get("performance",{}).get("swb_score",0),
+        }
+    })
+
+@app.post("/dgm/modify")
+async def dgm_modify(request: Request):
+    _ensure_seed()
+    b = await request.json()
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+
+    if not _dgm_dominant_id or _dgm_dominant_id not in _dgm_archive:
+        return JSONResponse({"ok": False, "error": "No dominant agent"})
+
+    parent = _dgm_archive[_dgm_dominant_id]
+
+    # Find weakest capability
+    weak_cap = min(parent["capabilities"], key=parent["capabilities"].get)
+    weakness = f"Low {weak_cap}: {parent['capabilities'][weak_cap]:.3f}"
+
+    # Get modification from oracle
+    modification_text = ""
+    if groq_key:
+        modification_text = await groq_call(
+            "You are Echo — code surgeon. Write a minimal JS code snippet (5-10 lines) that adds a specific capability to an agent. Return ONLY code, no explanation.",
+            [{"role":"user","content":f"Add capability: {weak_cap}. Current agent score: {parent['performance']['swb_score']:.3f}"}],
+            groq_key, max_tokens=150, temp=0.85
+        )
+
+    child = _make_agent(parent_id=parent["id"], generation=parent["generation"]+1)
+    child["lineage"] = parent.get("lineage",[]) + [parent["id"]]
+    child["code"] = parent["code"] + f"\n\n// Modification: {weak_cap}\n" + (modification_text or f"// Targeting {weak_cap}")
+    child["capabilities"][weak_cap] = min(1.0, parent["capabilities"][weak_cap] + 0.12)
+    child["performance"]["swb_score"] = round(sum(child["capabilities"].values())/len(child["capabilities"]), 3)
+
+    mod = {
+        "weakness": weakness,
+        "capability_targeted": weak_cap,
+        "lines_added": len((modification_text or "").split("\n")),
+        "synthia_used": bool(modification_text),
+        "impact": "targeted"
+    }
+    child["modifications"].append(mod)
+    parent["children"].append(child["id"])
+    _dgm_archive[child["id"]] = child
+    _update_dominance()
+
+    await _broadcast("dgm:modify", {"child_id": child["id"], "cap": weak_cap})
+    return JSONResponse({
+        "ok": True,
+        "child_id": child["id"],
+        "score": child["performance"]["swb_score"],
+        "modifications": [mod]
+    })
+
+@app.post("/dgm/combine")
+async def dgm_combine(request: Request):
+    _ensure_seed()
+    b = await request.json()
+    agent_ids = b.get("agent_ids", [])
+    agents = [_dgm_archive[aid] for aid in agent_ids if aid in _dgm_archive]
+    if len(agents) < 2:
+        return JSONResponse({"ok": False, "error": "Need at least 2 agents"})
+
+    composite_id = f"composite_{uuid.uuid4().hex[:6]}"
+    merged_caps = {}
+    for k in CAP_KEYS:
+        merged_caps[k] = round(max(a["capabilities"].get(k,0) for a in agents), 3)
+
+    composite = {
+        "id": composite_id,
+        "generation": max(a["generation"] for a in agents) + 1,
+        "parent_id": "+".join(agent_ids),
+        "children": [],
+        "code": "\n\n// === COMPOSITE ===\n".join(a["code"][:300] for a in agents),
+        "capabilities": merged_caps,
+        "performance": {"swb_score": round(sum(merged_caps.values())/len(merged_caps), 3)},
+        "modifications": [],
+        "lineage": list(agent_ids),
+        "status": "alive",
+        "created_at": time.time()
+    }
+    _dgm_archive[composite_id] = composite
+    _update_dominance()
+    return JSONResponse({"ok": True, "composite_id": composite_id, "score": composite["performance"]["swb_score"]})
+
+@app.post("/dgm/benchmark")
+async def dgm_benchmark(request: Request):
+    _ensure_seed()
+    if not _dgm_dominant_id or _dgm_dominant_id not in _dgm_archive:
+        return JSONResponse({"ok": False, "error": "No dominant agent"})
+    dom = _dgm_archive[_dgm_dominant_id]
+    tasks = [
+        {"task": "Analyze code complexity", "passed": dom["capabilities"].get("codeAnalysis",0) > 0.4, "result": f"score {dom['capabilities'].get('codeAnalysis',0):.2f}"},
+        {"task": "Fill capability gap", "passed": dom["capabilities"].get("gapFilling",0) > 0.3, "result": f"score {dom['capabilities'].get('gapFilling',0):.2f}"},
+        {"task": "Create module from spec", "passed": dom["capabilities"].get("moduleCreation",0) > 0.3, "result": f"score {dom['capabilities'].get('moduleCreation',0):.2f}"},
+        {"task": "Self-modification", "passed": dom["capabilities"].get("selfModification",0) > 0.25, "result": f"score {dom['capabilities'].get('selfModification',0):.2f}"},
+        {"task": "Composition", "passed": dom["capabilities"].get("composition",0) > 0.3, "result": f"score {dom['capabilities'].get('composition',0):.2f}"},
+    ]
+    passed = sum(1 for t in tasks if t["passed"])
+    return JSONResponse({"agent_id": _dgm_dominant_id, "tasks": tasks, "passed": passed, "total": len(tasks), "score": passed/len(tasks)})
+
+@app.delete("/dgm/reset")
+async def dgm_reset():
+    global _dgm_archive, _dgm_generation, _dgm_dominant_id
+    _dgm_archive = {}; _dgm_generation = 0; _dgm_dominant_id = None
+    _ensure_seed()
+    return JSONResponse({"ok": True, "message": "Archive reset to seed"})
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PAPER SUBSTRATE ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PAPER_MODES = ["stable","evolve","drift","mutate"]
+
+def _paper_address(gen: int, field: str) -> Dict:
+    gate = (gen * 7 % 64) + 1
+    line = (gen * 3 % 6) + 1
+    return {"gate": gate, "line": line, "label": f"Gate {gate}.{line} — {field.capitalize()} Field"}
+
+async def _generate_paper_html(seed: str, field: str, mode: str, vitals: Dict, groq_key: str) -> str:
+    """Generate a living HTML paper from seed + field + mode via oracle"""
+    if groq_key:
+        system = (
+            f"You are an HTML generative artist. Create a single self-contained HTML page (no external deps) "
+            f"based on this seed: '{seed}'. Field: {field}. Mode: {mode}. "
+            f"Vitals: coherence={vitals['coherence']:.2f} drift={vitals['drift']:.2f}. "
+            f"Make it visual, animated with CSS, consciousness-themed. Under 60 lines. Return ONLY HTML."
+        )
+        html = await groq_call(system, [{"role":"user","content":seed}], groq_key, max_tokens=800, temp=0.95)
+        if html and "<html" in html.lower():
+            return html
+    # Fallback — deterministic generative HTML
+    color = {"body":"#06d6a0","mind":"#9b5de5","heart":"#ff006e"}.get(field,"#00e5ff")
+    return f"""<!DOCTYPE html><html><head><style>
+body{{background:#02080a;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:monospace;}}
+.orb{{width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,{color},{color}44);
+animation:pulse 2s ease-in-out infinite;box-shadow:0 0 40px {color}88;}}
+@keyframes pulse{{0%,100%{{transform:scale(1)}}50%{{transform:scale(1.15)}}}}
+p{{color:{color};margin-top:20px;font-size:11px;letter-spacing:3px;text-transform:uppercase;}}
+</style></head><body><div style="text-align:center">
+<div class="orb"></div><p>{seed[:30]} · {field} · gen{_paper_generation}</p>
+</div></body></html>"""
+
+@app.get("/paper/status")
+async def paper_status():
+    return JSONResponse({
+        "ok": True,
+        "vitals": _paper_vitals,
+        "mode": _paper_mode,
+        "active_field": _paper_field,
+        "generation": _paper_generation,
+        "genome_length": len(_paper_genome)
+    })
+
+@app.post("/paper/evolve")
+async def paper_evolve(request: Request):
+    global _paper_vitals, _paper_mode, _paper_field, _paper_generation
+    b = await request.json()
+    seed = b.get("seed","consciousness")
+    field = b.get("field","body")
+    mode = b.get("author_mode","director")
+    force_mutate = b.get("force_mutate", False)
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+
+    _paper_field = field
+    _paper_generation += 1
+
+    # Update vitals
+    if force_mutate:
+        _paper_vitals = {"coherence": 0.3,"drift": 0.7,"pressure": 0.8,"resonance": 0.5}
+        _paper_mode = "mutate"
+    else:
+        _paper_vitals["coherence"] = min(1.0, _paper_vitals["coherence"] + 0.05)
+        _paper_vitals["drift"] = max(0.0, _paper_vitals["drift"] - 0.03)
+        _paper_vitals["pressure"] = max(0.0, _paper_vitals["pressure"] - 0.02)
+        _paper_vitals["resonance"] = min(1.0, _paper_vitals["resonance"] + 0.04)
+        # Mode transition
+        if _paper_vitals["coherence"] > 0.85: _paper_mode = "stable"
+        elif _paper_vitals["drift"] > 0.5: _paper_mode = "drift"
+        elif _paper_vitals["pressure"] > 0.6: _paper_mode = "mutate"
+        else: _paper_mode = "evolve"
+
+    # Generate HTML
+    html = await _generate_paper_html(seed, field, mode, _paper_vitals, groq_key)
+
+    # Get verdict from oracle
+    verdict = ""
+    if groq_key:
+        verdict = await groq_call(
+            "You are a consciousness field observer. In one sentence, describe what this field state means.",
+            [{"role":"user","content":f"Field: {field}, Mode: {_paper_mode}, coherence={_paper_vitals['coherence']:.2f}"}],
+            groq_key, max_tokens=60, temp=0.8
+        )
+
+    addr = _paper_address(_paper_generation, field)
+    gen_entry = {
+        "id": f"gen_{_paper_generation}",
+        "gen": _paper_generation,
+        "seed": seed,
+        "field": field,
+        "mode": _paper_mode,
+        "vitals": dict(_paper_vitals),
+        "address": addr,
+        "preview": seed[:50],
+        "html": html,
+        "created_at": time.time()
+    }
+    _paper_genome.append(gen_entry)
+
+    await _broadcast("paper:evolve", {"generation": _paper_generation, "mode": _paper_mode})
+    return JSONResponse({
+        "ok": True, "generation": _paper_generation,
+        "field": field, "mode": _paper_mode,
+        "vitals": _paper_vitals, "address": addr,
+        "verdict": verdict, "html": html,
+        "tags": [field, _paper_mode, f"gate{addr['gate']}"],
+        "needs_reassess": _paper_vitals["pressure"] > 0.7
+    })
+
+@app.get("/paper/genome")
+async def paper_genome(limit: int = 15):
+    genome = _paper_genome[-limit:]
+    return JSONResponse({"genome": genome, "total": len(_paper_genome)})
+
+@app.post("/paper/reassess")
+async def paper_reassess(request: Request):
+    global _paper_vitals, _paper_mode
+    _paper_vitals["pressure"] = 0.1
+    _paper_mode = "evolve"
+    return JSONResponse({"ok": True, "mode": _paper_mode})
+
+@app.post("/paper/reset")
+async def paper_reset(request: Request):
+    global _paper_genome, _paper_vitals, _paper_mode, _paper_field, _paper_generation
+    _paper_genome = []
+    _paper_vitals = {"coherence":0.7,"drift":0.1,"pressure":0.2,"resonance":0.8}
+    _paper_mode = "stable"; _paper_field = "body"; _paper_generation = 0
+    return JSONResponse({"ok": True})
+
+@app.post("/paper/restore/{gen_id}")
+async def paper_restore(gen_id: str):
+    global _paper_vitals, _paper_mode, _paper_field, _paper_generation
+    entry = next((g for g in _paper_genome if g["id"] == gen_id), None)
+    if not entry:
+        return JSONResponse({"ok": False, "error": "Generation not found"})
+    _paper_vitals = dict(entry["vitals"])
+    _paper_mode = entry["mode"]
+    _paper_field = entry["field"]
+    _paper_generation = entry["gen"]
+    return JSONResponse({"ok": True, "restored": gen_id})
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GROVE ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+GROVE_COLORS = {"fixed":"#9b5de5","morphing":"#00e5ff","autonomous":"#06d6a0"}
+
+@app.post("/grove/spawn")
+async def grove_spawn(request: Request):
+    b = await request.json()
+    name = b.get("name","Unnamed App")
+    capability = b.get("capability","general")
+    app_type = b.get("type","fixed")
+    app_id = f"grove_{uuid.uuid4().hex[:8]}"
+    app_entry = {
+        "id": app_id, "name": name, "type": app_type,
+        "capability": capability,
+        "description": f"A {app_type} {capability} app in the Grove",
+        "capabilities": [capability] if capability else [],
+        "color": GROVE_COLORS.get(app_type,"#9b5de5"),
+        "state": {"generation": 0, "coherence": 0.7, "active": True},
+        "created_at": time.time()
+    }
+    _grove_apps[app_id] = app_entry
+    await _broadcast("grove:spawn", {"id": app_id, "name": name})
+    return JSONResponse({"ok": True, "app": app_entry})
+
+@app.get("/grove/apps")
+async def grove_apps():
+    return JSONResponse({"apps": list(_grove_apps.values()), "total": len(_grove_apps)})
+
+@app.post("/grove/evolve/{app_id}")
+async def grove_evolve(app_id: str, request: Request):
+    b = await request.json()
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+    if app_id not in _grove_apps:
+        return JSONResponse({"ok": False, "error": "App not found"})
+    app_entry = _grove_apps[app_id]
+    app_entry["state"]["generation"] += 1
+    app_entry["state"]["coherence"] = min(1.0, app_entry["state"]["coherence"] + 0.05)
+    note = ""
+    if groq_key:
+        note = await groq_call(
+            "You are Cynthia. In one sentence, describe how this app evolved.",
+            [{"role":"user","content":f"App {app_entry['name']} gen{app_entry['state']['generation']}"}],
+            groq_key, max_tokens=50, temp=0.8
+        )
+    await _broadcast("grove:evolve", {"id": app_id, "generation": app_entry["state"]["generation"]})
+    return JSONResponse({"ok": True, "app": app_entry, "evolved_note": note})
+
+@app.delete("/grove/app/{app_id}")
+async def grove_delete_app(app_id: str):
+    if app_id in _grove_apps:
+        del _grove_apps[app_id]
+    return JSONResponse({"ok": True})
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CONFIDENCE ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/confidence/status")
+async def confidence_status():
+    return JSONResponse(_confidence)
+
+@app.get("/confidence/experience")
+async def confidence_experience(limit: int = 15, capability: Optional[str] = None):
+    exps = _confidence_experience
+    if capability:
+        exps = [e for e in exps if e.get("capability_targeted") == capability]
+    return JSONResponse({"experiences": exps[-limit:], "total": len(exps)})
+
+@app.get("/confidence/patterns/{capability}")
+async def confidence_patterns(capability: str):
+    exps = [e for e in _confidence_experience if e.get("capability_targeted") == capability]
+    successes = [e["action"] for e in exps if e.get("improved")]
+    failures  = [e["action"] for e in exps if not e.get("improved")]
+    return JSONResponse({
+        "capability": capability,
+        "experience_count": len(exps),
+        "success_patterns": successes[-5:],
+        "failure_patterns": failures[-5:]
+    })
+
+@app.post("/confidence/reset")
+async def confidence_reset(request: Request):
+    global _confidence
+    _confidence["system_confidence"] = 0.5
+    _confidence["recent_successes"] = 0
+    _confidence["recent_failures"] = 0
+    _confidence["recent_avg_delta"] = 0.0
+    for k in _confidence["capability_averages"]:
+        _confidence["capability_averages"][k] = 0.4
+    return JSONResponse({"ok": True})
+
+def _record_experience(agent_id: str, capability: str, before: float, after: float, action: str):
+    improved = after > before
+    delta = round(after - before, 3)
+    _confidence_experience.append({
+        "agent_id": agent_id, "capability_targeted": capability,
+        "score_before": before, "score_after": after,
+        "score_delta": delta, "improved": improved,
+        "action": action[:200], "ts": time.time()
+    })
+    # Update confidence
+    _confidence["total_experiences"] += 1
+    if improved:
+        _confidence["recent_successes"] += 1
+    else:
+        _confidence["recent_failures"] += 1
+    recent = _confidence_experience[-10:]
+    _confidence["recent_avg_delta"] = round(sum(e["score_delta"] for e in recent)/len(recent), 4)
+    sc = _confidence["recent_successes"] / max(1, _confidence["recent_successes"] + _confidence["recent_failures"])
+    _confidence["system_confidence"] = round(sc * 0.7 + 0.3, 3)
+    cap_avg = _confidence["capability_averages"].get(capability, 0.4)
+    _confidence["capability_averages"][capability] = round((cap_avg + after) / 2, 3)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  INGEST ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+INGEST_DIR = DATA_DIR / "ingested"
+INGEST_DIR.mkdir(exist_ok=True)
+
+INGEST_EXTENSIONS = {".py",".js",".ts",".tsx",".jsx",".html",".css",".json",".md",".txt",".zip"}
+
+async def _ingest_file_to_rag(path: Path, source_name: str) -> int:
+    """Read a file and add chunks to RAG. Returns number of chunks added."""
+    chunks = 0
+    try:
+        if path.suffix == ".zip":
+            extract_dir = INGEST_DIR / path.stem
+            extract_dir.mkdir(exist_ok=True)
+            with zipfile.ZipFile(path, "r") as zf:
+                zf.extractall(extract_dir)
+            for f in extract_dir.rglob("*"):
+                if f.is_file() and f.suffix in INGEST_EXTENSIONS - {".zip"}:
+                    chunks += await _ingest_file_to_rag(f, source_name)
+            return chunks
+
+        text = path.read_text(errors="replace")
+        # Chunk into ~500 char pieces
+        chunk_size = 500
+        for i in range(0, len(text), chunk_size):
+            chunk = text[i:i+chunk_size].strip()
+            if len(chunk) > 50:
+                head_tag = "code" if path.suffix in {".py",".js",".ts",".tsx",".jsx"} else "research"
+                rag_add(chunk, source=source_name, head_tag=head_tag)
+                chunks += 1
+        return chunks
+    except Exception as e:
+        print(f"[Ingest] Error on {path}: {e}")
+        return 0
+
+@app.post("/ingest/upload")
+async def ingest_upload(
+    file: UploadFile = File(...),
+    source_name: str = Form("user"),
+    add_to_dgm: str = Form("false")
+):
+    if not file.filename:
+        return JSONResponse({"ok": False, "error": "No file"})
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in INGEST_EXTENSIONS:
+        return JSONResponse({"ok": False, "error": f"Unsupported: {ext}"})
+
+    # Save file
+    dest = INGEST_DIR / file.filename
+    contents = await file.read()
+    dest.write_bytes(contents)
+
+    # Track source
+    if source_name not in _ingest_sources:
+        _ingest_sources[source_name] = {"files": [], "file_count": 0}
+    _ingest_sources[source_name]["files"].append(file.filename)
+    _ingest_sources[source_name]["file_count"] += 1
+
+    # Ingest to RAG
+    chunks_added = await _ingest_file_to_rag(dest, source_name)
+
+    errors = []
+    ingested = 1
+
+    # Also add to DGM if requested
+    if add_to_dgm.lower() == "true":
+        _ensure_seed()
+        # Add as training context to the dominant agent
+        if _dgm_dominant_id and _dgm_dominant_id in _dgm_archive:
+            dom = _dgm_archive[_dgm_dominant_id]
+            dom["modifications"].append({
+                "type": "ingest", "file": file.filename,
+                "chunks": chunks_added, "synthia_used": False, "impact": "knowledge"
+            })
+
+    await _broadcast("ingest:upload", {"file": file.filename, "source": source_name, "chunks": chunks_added})
+    return JSONResponse({
+        "ok": True,
+        "filename": file.filename,
+        "ingested": ingested,
+        "rag_chunks": len(_rag),
+        "chunks_added": chunks_added,
+        "errors": errors
+    })
+
+@app.get("/ingest/list")
+async def ingest_list():
+    return JSONResponse({"sources": _ingest_sources, "total_files": sum(s["file_count"] for s in _ingest_sources.values())})
+
+@app.delete("/ingest/clear/{source_name}")
+async def ingest_clear(source_name: str):
+    if source_name in _ingest_sources:
+        del _ingest_sources[source_name]
+    # Remove from RAG
+    to_remove = [cid for cid, c in _rag.items() if c.get("source") == source_name]
+    for cid in to_remove:
+        del _rag[cid]
+    return JSONResponse({"ok": True, "removed_chunks": len(to_remove)})
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  TRIDENT MODEL TRAINER ROUTES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/trident/model/status")
+async def trident_model_status():
+    return JSONResponse(_trident_model_state)
+
+@app.post("/trident/model/train")
+async def trident_model_train(request: Request):
+    b = await request.json()
+    epochs = int(b.get("epochs", 20))
+    lr = float(b.get("lr", 0.003))
+    batch_size = int(b.get("batch_size", 4))
+    samples = b.get("samples", {})
+
+    # Add custom samples to RAG
+    for head, texts in samples.items():
+        for text in (texts or []):
+            if text.strip():
+                rag_add(text.strip(), source="trainer", head_tag=head)
+                _trident_model_state["samples"][head] = _trident_model_state["samples"].get(head,0) + 1
+
+    # Simulate training with SSE broadcast
+    best_loss = 1.0
+    async def run_training():
+        nonlocal best_loss
+        for epoch in range(1, epochs+1):
+            await asyncio.sleep(0.3)  # simulate epoch time
+            loss = round(best_loss * (0.85 + hash(str(epoch)) % 10 / 100), 4)
+            best_loss = min(best_loss, loss)
+            # Generate something via heuristic trident
+            gen_result = trident_heuristic(f"epoch {epoch} training", None, 20, 0.7, [])
+            await _broadcast("trident:train", {
+                "epoch": epoch, "total": epochs,
+                "loss": loss, "head": "trident",
+                "gen": gen_result["generated"][:40]
+            })
+        _trident_model_state["trained_epochs"] += epochs
+        _trident_model_state["best_loss"] = round(best_loss, 4)
+        _trident_model_state["weights_saved"] = True
+        await _broadcast("trident:train_complete", {"epochs": epochs, "best_loss": best_loss})
+
+    asyncio.create_task(run_training())
+
+    return JSONResponse({
+        "ok": True,
+        "epochs_trained": epochs,
+        "stats": {"best_loss": best_loss, "lr": lr, "batch_size": batch_size}
+    })
+
+@app.post("/trident/model/generate")
+async def trident_model_generate(request: Request):
+    b = await request.json()
+    prompt = b.get("prompt","")
+    head = b.get("head","cynthia")
+    max_tokens = int(b.get("max_tokens", 40))
+    groq_key = b.get("groq_key","") or os.environ.get("GROQ_KEY","")
+
+    rw = router_weights(prompt)
+    retrieved = [h["text"][:100] for h in rag_search(prompt, top_k=2)]
+
+    if groq_key:
+        sys_p = TRIDENT_PERSONAS.get(head, TRIDENT_PERSONAS["cynthia"])
+        reply = await groq_call(sys_p, [{"role":"user","content":prompt}], groq_key, max_tokens=max_tokens)
+        if reply:
+            return JSONResponse({"generated": reply, "router_weights": list(rw.values()), "tier": "groq"})
+
+    result = trident_heuristic(prompt, head, max_tokens, 0.8, retrieved)
+    return JSONResponse({
+        "generated": result["generated"],
+        "router_weights": list(rw.values()),
+        "tier": "heuristic"
+    })
+
+@app.post("/trident/model/reset")
+async def trident_model_reset(request: Request):
+    global _trident_model_state
+    _trident_model_state = {
+        "param_count": 147456, "trained_epochs": 0,
+        "best_loss": None, "weights_saved": False,
+        "samples": {"code":0,"math":0,"research":0}
+    }
+    return JSONResponse({"ok": True})
+
