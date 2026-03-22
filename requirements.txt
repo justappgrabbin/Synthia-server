@@ -5,7 +5,11 @@ mcp==1.26.0
 numpy==2.4.3
 onnxruntime==1.24.4
 pyephem==9.99
+python-dotenv>=1.0.0
+pyyaml>=6.0
+requests>=2.31.0
 sse_starlette==3.3.3
+supabase>=2.0.0
 swisseph==0.0.0.dev1
 torch==2.10.0
 uvicorn==0.42.0
