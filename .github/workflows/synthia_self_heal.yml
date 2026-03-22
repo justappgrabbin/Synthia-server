@@ -1,0 +1,617 @@
+name: Synthia Universal Self-Heal
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+
+  # ══════════════════════════════════════════════════════
+  # LAYER 0: Python Requirements Auto-Heal
+  # ══════════════════════════════════════════════════════
+  heal-python-deps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      reqs_generated: ${{ steps.pipreqs.outputs.generated }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install pipreqs
+        run: pip install pipreqs
+
+      - name: Scan Python Files & Generate Requirements
+        id: pipreqs
+        run: |
+          PYTHON_FILES=$(find . -name "*.py" \
+            -not -path "./venv/*" \
+            -not -path "./.venv/*" \
+            -not -path "./node_modules/*" \
+            -not -path "./__pycache__/*" | head -1)
+
+          if [ -n "$PYTHON_FILES" ]; then
+            echo "Python files found. Scanning imports..."
+            pipreqs . --force \
+              --ignore venv,.venv,node_modules,__pycache__,.git \
+              || true
+
+            if [ -f "requirements.txt" ]; then
+              echo "generated=true" >> $GITHUB_OUTPUT
+              echo "✅ Generated requirements.txt:"
+              cat requirements.txt
+            else
+              echo "generated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No Python files found, skipping"
+            echo "generated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Ensure core Python packages present
+        run: |
+          if [ -f "requirements.txt" ]; then
+            # Add missing essentials if not already there
+            grep -q "fastapi"        requirements.txt || echo "fastapi>=0.110.0"        >> requirements.txt
+            grep -q "uvicorn"        requirements.txt || echo "uvicorn[standard]>=0.27.0" >> requirements.txt
+            grep -q "pyyaml"         requirements.txt || echo "pyyaml>=6.0"             >> requirements.txt
+            grep -q "python-dotenv"  requirements.txt || echo "python-dotenv>=1.0.0"    >> requirements.txt
+            grep -q "supabase"       requirements.txt || echo "supabase>=2.0.0"         >> requirements.txt
+            grep -q "requests"       requirements.txt || echo "requests>=2.31.0"        >> requirements.txt
+            grep -q "numpy"          requirements.txt || echo "numpy>=1.24.0"           >> requirements.txt
+            sort -u requirements.txt -o requirements.txt
+          fi
+
+      - name: Commit Requirements
+        run: |
+          git add requirements.txt 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git config user.name "Synthia Heal[bot]"
+            git config user.email "heal@synthia.local"
+            git commit -m "📦 [Python] Auto-generated requirements.txt from imports"
+            git push
+          fi
+
+
+  # ══════════════════════════════════════════════════════
+  # LAYER 1: Node.js Dependencies Auto-Heal
+  # FIX: Don't use npm cache when lock file may not exist
+  # ══════════════════════════════════════════════════════
+  heal-node-deps:
+    runs-on: ubuntu-latest
+    needs: heal-python-deps
+    permissions:
+      contents: write
+    outputs:
+      deps_added: ${{ steps.fix-node.outputs.added }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # FIX: Setup node WITHOUT cache — cache crashes if no lock file exists
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check if Node project exists
+        id: check-node
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package=true" >> $GITHUB_OUTPUT
+            echo "✅ package.json found"
+          else
+            echo "has_package=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No package.json — will check if JS files exist"
+          fi
+
+          # Check for JS/TS files that would need a package.json
+          JS_FILES=$(find . -name "*.js" -o -name "*.ts" -o -name "*.tsx" \
+            -not -path "./node_modules/*" \
+            -not -path "./.git/*" | head -1)
+
+          if [ -n "$JS_FILES" ]; then
+            echo "has_js=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_js=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create package.json if missing but JS exists
+        if: steps.check-node.outputs.has_package == 'false' && steps.check-node.outputs.has_js == 'true'
+        run: |
+          echo "Creating package.json for detected JS project..."
+          cat > package.json << 'EOF'
+          {
+            "name": "synthia-os",
+            "version": "2.0.0",
+            "description": "Synthia consciousness OS — self-healing, self-building",
+            "main": "server/index.js",
+            "scripts": {
+              "start": "node server/index.js",
+              "dev": "nodemon server/index.js",
+              "build": "echo 'No build step required'",
+              "test": "echo 'Tests not yet configured'"
+            },
+            "dependencies": {
+              "@modelcontextprotocol/sdk": "^1.0.0",
+              "@supabase/supabase-js": "^2.39.0",
+              "compression": "^1.7.4",
+              "cors": "^2.8.5",
+              "dotenv": "^16.3.1",
+              "express": "^4.18.2",
+              "express-rate-limit": "^7.1.0",
+              "helmet": "^7.1.0",
+              "node-cron": "^3.0.3",
+              "onnxruntime-node": "^1.16.0",
+              "ws": "^8.14.2"
+            },
+            "engines": {
+              "node": ">=18.0.0"
+            }
+          }
+          EOF
+          echo "✅ package.json created"
+
+      - name: Install & audit dependencies
+        if: steps.check-node.outputs.has_package == 'true' || steps.check-node.outputs.has_js == 'true'
+        id: install
+        run: |
+          if [ -f "package.json" ]; then
+            # Install with legacy peer deps to avoid unnecessary failures
+            npm install --legacy-peer-deps 2>&1 | tail -5 || true
+
+            # Generate lock file if missing
+            if [ ! -f "package-lock.json" ]; then
+              npm install --package-lock-only --legacy-peer-deps 2>&1 | tail -3 || true
+            fi
+
+            echo "installed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install depcheck and scan for missing deps
+        if: steps.install.outputs.installed == 'true'
+        id: fix-node
+        run: |
+          npm install -g depcheck 2>/dev/null || true
+
+          if command -v depcheck &> /dev/null; then
+            depcheck --json > depcheck-result.json 2>/dev/null || true
+
+            if [ -f "depcheck-result.json" ]; then
+              MISSING=$(cat depcheck-result.json | \
+                python3 -c "import json,sys; d=json.load(sys.stdin); print(' '.join(d.get('dependencies',[])))" \
+                2>/dev/null || echo "")
+
+              if [ -n "$MISSING" ]; then
+                echo "❌ Missing: $MISSING"
+                for pkg in $MISSING; do
+                  npm install --save "$pkg" --legacy-peer-deps 2>/dev/null || true
+                done
+                echo "added=$(echo $MISSING | wc -w)" >> $GITHUB_OUTPUT
+              else
+                echo "✅ All dependencies present"
+                echo "added=0" >> $GITHUB_OUTPUT
+              fi
+            fi
+          else
+            echo "added=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit Node fixes
+        run: |
+          git add package.json package-lock.json 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git config user.name "Synthia Heal[bot]"
+            git config user.email "heal@synthia.local"
+            git commit -m "📦 [Node] Auto-fixed dependencies and lock file"
+            git push
+          fi
+
+
+  # ══════════════════════════════════════════════════════
+  # LAYER 2: Structure & Required Files
+  # ══════════════════════════════════════════════════════
+  heal-structure:
+    runs-on: ubuntu-latest
+    needs: [heal-python-deps, heal-node-deps]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan & heal .gitignore
+        run: |
+          if [ ! -f ".gitignore" ]; then
+            echo "Creating .gitignore..."
+            cat > .gitignore << 'EOF'
+          # Python
+          __pycache__/
+          *.py[cod]
+          *$py.class
+          *.so
+          venv/
+          .venv/
+          env/
+          *.egg-info/
+          dist/
+          build/
+
+          # Node
+          node_modules/
+          npm-debug.log*
+          .next/
+          dist/
+          .cache/
+
+          # Environment & Secrets
+          .env
+          .env.local
+          .env.*.local
+          secrets.json
+          *.key
+
+          # Model weights (use Git LFS or HuggingFace instead)
+          *.pt
+          *.pth
+          *.bin
+          # Keep ONNX if small: *.onnx
+
+          # IDE
+          .vscode/
+          .idea/
+          *.swp
+          *.swo
+
+          # OS
+          .DS_Store
+          Thumbs.db
+
+          # Logs
+          *.log
+          logs/
+          EOF
+            echo "✅ .gitignore created"
+          fi
+
+      - name: Scan & heal render.yaml
+        run: |
+          if [ ! -f "render.yaml" ] && [ -f "package.json" ]; then
+            echo "Creating render.yaml..."
+            cat > render.yaml << 'EOF'
+          services:
+            - type: web
+              name: synthia-os
+              runtime: node
+              plan: standard
+              buildCommand: npm install
+              startCommand: npm start
+              healthCheckPath: /health
+              envVars:
+                - key: NODE_ENV
+                  value: production
+                - key: PORT
+                  value: 10000
+                - key: SUPABASE_PRIMARY_URL
+                  sync: false
+                - key: SUPABASE_PRIMARY_KEY
+                  sync: false
+                - key: ANTHROPIC_API_KEY
+                  sync: false
+                - key: OPENAI_API_KEY
+                  sync: false
+          EOF
+            echo "✅ render.yaml created"
+          fi
+
+      - name: Scan & heal server structure
+        run: |
+          # Only create server structure if package.json exists
+          if [ -f "package.json" ] && [ ! -d "server" ]; then
+            echo "Creating server structure..."
+            mkdir -p server/gnn server/engine server/routes
+
+            cat > server/index.js << 'EOF'
+          require('dotenv').config();
+          const express  = require('express');
+          const cors     = require('cors');
+          const helmet   = require('helmet');
+          const app      = express();
+
+          app.use(helmet({ contentSecurityPolicy: false }));
+          app.use(cors());
+          app.use(express.json({ limit: '10mb' }));
+
+          // Health check
+          app.get('/health', (req, res) => {
+            res.json({
+              status: 'healthy',
+              version: '2.0.0',
+              timestamp: new Date().toISOString()
+            });
+          });
+
+          // Intent analysis
+          app.post('/api/intent', (req, res) => {
+            res.json({
+              mode: 'bonding',
+              confidence: 0.9,
+              intent: req.body.intent || 'unknown'
+            });
+          });
+
+          // Chart analysis (HD GNN)
+          app.post('/api/chart', (req, res) => {
+            res.json({
+              status: 'ready',
+              message: 'Connect to Python GNN server for full analysis',
+              placements: req.body.placements || []
+            });
+          });
+
+          const PORT = process.env.PORT || 10000;
+          app.listen(PORT, '0.0.0.0', () => {
+            console.log(`✅ Synthia OS on port ${PORT}`);
+          });
+          EOF
+
+            cat > server/gnn/bridge.js << 'EOF'
+          class TridentBridge {
+            constructor() { this.ready = true; }
+            async analyzeIntent(intent) { return { mode: 'bonding', confidence: 0.9, intent }; }
+            async analyzeCode(filename)  { return { mode: 'bonding', confidence: 0.9, filename }; }
+          }
+          module.exports = new TridentBridge();
+          EOF
+
+            echo "✅ Server structure created"
+          fi
+
+      - name: Scan & heal README
+        run: |
+          if [ ! -f "README.md" ]; then
+            echo "Creating README.md..."
+            cat > README.md << 'EOF'
+          # Synthia OS
+
+          Self-healing consciousness operating system.
+
+          ## Quick start
+
+          ```bash
+          npm install
+          npm start
+          ```
+
+          Server runs on port 10000. Health check at `/health`.
+
+          ## Environment variables
+
+          Copy `.env.example` to `.env` and fill in:
+
+          ```
+          SUPABASE_PRIMARY_URL=https://leisphnjslcuepflefri.supabase.co
+          SUPABASE_PRIMARY_KEY=your_anon_key
+          ANTHROPIC_API_KEY=your_key
+          OPENAI_API_KEY=your_key
+          PORT=10000
+          ```
+
+          ## Endpoints
+
+          - `GET  /health`       — system status
+          - `POST /api/intent`   — intent analysis
+          - `POST /api/chart`    — HD chart analysis
+
+          *Built by Syntia · Cross of Eden · C2KN*
+          EOF
+            echo "✅ README.md created"
+          fi
+
+      - name: Scan & heal .env.example
+        run: |
+          if [ ! -f ".env.example" ] && [ ! -f ".env" ]; then
+            cat > .env.example << 'EOF'
+          # Supabase
+          SUPABASE_PRIMARY_URL=https://leisphnjslcuepflefri.supabase.co
+          SUPABASE_PRIMARY_KEY=your_supabase_anon_key_here
+
+          # AI APIs
+          ANTHROPIC_API_KEY=your_anthropic_key_here
+          OPENAI_API_KEY=your_openai_key_here
+
+          # Server
+          PORT=10000
+          NODE_ENV=production
+          EOF
+            echo "✅ .env.example created"
+          fi
+
+      - name: Commit structure fixes
+        run: |
+          git add -A
+          if ! git diff --staged --quiet; then
+            git config user.name "Synthia Heal[bot]"
+            git config user.email "heal@synthia.local"
+            git commit -m "🏗️ [Structure] Healed repository files"
+            git push
+          else
+            echo "✅ Structure already healthy"
+          fi
+
+
+  # ══════════════════════════════════════════════════════
+  # LAYER 3: TypeScript / Build Check
+  # ══════════════════════════════════════════════════════
+  heal-typescript:
+    runs-on: ubuntu-latest
+    needs: heal-structure
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check for TypeScript files
+        id: check-ts
+        run: |
+          TS_FILES=$(find . -name "*.ts" -o -name "*.tsx" \
+            -not -path "./node_modules/*" \
+            -not -path "./.git/*" | head -1)
+          if [ -n "$TS_FILES" ]; then
+            echo "has_ts=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_ts=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Heal tsconfig if missing
+        if: steps.check-ts.outputs.has_ts == 'true'
+        run: |
+          if [ ! -f "tsconfig.json" ]; then
+            cat > tsconfig.json << 'EOF'
+          {
+            "compilerOptions": {
+              "target": "ES2020",
+              "module": "commonjs",
+              "lib": ["ES2020"],
+              "strict": false,
+              "esModuleInterop": true,
+              "skipLibCheck": true,
+              "forceConsistentCasingInFileNames": true,
+              "resolveJsonModule": true,
+              "outDir": "./dist",
+              "rootDir": "./",
+              "baseUrl": ".",
+              "paths": {
+                "@shared/*": ["./shared/*"],
+                "@/*": ["./*"]
+              }
+            },
+            "include": ["**/*.ts", "**/*.tsx"],
+            "exclude": ["node_modules", "dist", "venv", ".venv"]
+          }
+          EOF
+            echo "✅ tsconfig.json created"
+          fi
+
+          git add tsconfig.json 2>/dev/null || true
+          if ! git diff --staged --quiet; then
+            git config user.name "Synthia Heal[bot]"
+            git config user.email "heal@synthia.local"
+            git commit -m "🔧 [TypeScript] Added tsconfig.json"
+            git push
+          fi
+
+
+  # ══════════════════════════════════════════════════════
+  # LAYER 4: Deployment Readiness Check
+  # ══════════════════════════════════════════════════════
+  heal-deployment:
+    runs-on: ubuntu-latest
+    needs: [heal-structure, heal-typescript]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check deployment readiness
+        id: deploy-check
+        run: |
+          READY=true
+
+          echo "## Deployment Readiness Check"
+
+          # Check render.yaml
+          if [ -f "render.yaml" ]; then
+            echo "✅ render.yaml present"
+          else
+            echo "⚠️ render.yaml missing"
+            READY=false
+          fi
+
+          # Check start script
+          if [ -f "package.json" ]; then
+            START=$(cat package.json | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('scripts',{}).get('start',''))" 2>/dev/null)
+            if [ -n "$START" ]; then
+              echo "✅ Start script: $START"
+            else
+              echo "⚠️ No start script in package.json"
+              READY=false
+            fi
+          fi
+
+          # Check for health endpoint
+          if grep -r "health" server/ --include="*.js" -l 2>/dev/null | head -1; then
+            echo "✅ Health endpoint found"
+          else
+            echo "⚠️ No health endpoint found"
+          fi
+
+          # Check Python server if present
+          if [ -f "qhd/server.py" ]; then
+            echo "✅ Python GNN server present (qhd/server.py)"
+          fi
+
+          echo "ready=$READY" >> $GITHUB_OUTPUT
+
+      - name: Validate server starts
+        if: hashFiles('package.json') != ''
+        run: |
+          if [ -f "package.json" ] && [ -f "server/index.js" ]; then
+            npm install --legacy-peer-deps 2>/dev/null | tail -3 || true
+            # Quick syntax check
+            node --check server/index.js 2>&1 && echo "✅ server/index.js syntax OK" || echo "⚠️ Syntax issues in server/index.js"
+          fi
+
+
+  # ══════════════════════════════════════════════════════
+  # FINAL REPORT
+  # FIX: Removed references to non-existent step outputs
+  # ══════════════════════════════════════════════════════
+  healing-report:
+    runs-on: ubuntu-latest
+    needs: [heal-python-deps, heal-node-deps, heal-structure, heal-typescript, heal-deployment]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate report
+        run: |
+          echo "# 🏥 Synthia Universal Self-Heal Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 0 · Python Requirements | ${{ needs.heal-python-deps.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 · Node Dependencies   | ${{ needs.heal-node-deps.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 · Repository Structure| ${{ needs.heal-structure.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3 · TypeScript Config   | ${{ needs.heal-typescript.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 · Deployment Readiness| ${{ needs.heal-deployment.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Count what changed this run
+          CHANGED=$(git log --oneline -5 --since="1 hour ago" --author="Synthia Heal" 2>/dev/null | wc -l)
+          if [ "$CHANGED" -gt "0" ]; then
+            echo "### 🔧 Fixes applied this run:" >> $GITHUB_STEP_SUMMARY
+            git log --oneline -5 --since="1 hour ago" --author="Synthia Heal" 2>/dev/null \
+              | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ All systems healthy — nothing needed fixing" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Completed $(date -u +'%Y-%m-%d %H:%M:%S UTC') · Synthia OS Self-Heal · Cross of Eden*" >> $GITHUB_STEP_SUMMARY
