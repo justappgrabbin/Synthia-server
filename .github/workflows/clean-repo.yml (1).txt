@@ -1,0 +1,117 @@
+name: Clean + Optimize Repo
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  clean-and-optimize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Remove junk files
+        run: |
+          rm -f model.cpython-312.pyc rag.cpython-312.pyc
+          rm -f signal_server.cpython-312.pyc train.cpython-312.pyc
+          find . -name "*.pyc" -delete
+          find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          rm -f index.html matrix.html network.html profile.html resonance.html shared.css
+          rm -f resonance_module_extended*.html 2>/dev/null || true
+          rm -f signal_server.py state_observer.py quantum_bridge.py
+          rm -f trinity_field.py sentence_engine.py rag.py train.py
+          rm -f rag_client.js yunv.js
+          rm -rf Setup/
+          find .github/workflows -name "setup.yml" -delete 2>/dev/null || true
+          find .github/workflows -name "synthia_self_heal_fixed*" -delete 2>/dev/null || true
+          echo "✓ Junk removed"
+
+      - name: Write .gitignore
+        run: |
+          cat > .gitignore << 'GITEOF'
+          __pycache__/
+          *.pyc
+          *.pyo
+          venv/
+          .venv/
+          env/
+          data/
+          .DS_Store
+          Thumbs.db
+          *.log
+          .env
+          .env.local
+          node_modules/
+          GITEOF
+
+      - name: Write lean requirements.txt
+        run: |
+          cat > requirements.txt << 'REQEOF'
+          fastapi>=0.110.0
+          uvicorn>=0.29.0
+          sse-starlette>=1.6.5
+          httpx>=0.27.0
+          numpy>=1.24.0
+          onnxruntime>=1.17.0
+          pyswisseph>=2.10.0
+          REQEOF
+
+      - name: Write clean render.yaml
+        run: |
+          cat > render.yaml << 'RENEOF'
+          services:
+            - type: web
+              name: synthia-server
+              env: python
+              region: oregon
+              plan: free
+              buildCommand: pip install -r requirements.txt --no-cache-dir
+              startCommand: python server.py
+              healthCheckPath: /health
+              envVars:
+                - key: PORT
+                  value: 10000
+                - key: DATA_DIR
+                  value: ./data
+                - key: GROQ_KEY
+                  sync: false
+                - key: SUPABASE_URL
+                  sync: false
+                - key: SUPABASE_KEY
+                  sync: false
+          RENEOF
+
+      - name: Inject credentials into server.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          if [ -f server.py ]; then
+            sed -i "s|https://[a-zA-Z0-9]*\.supabase\.co|${SUPABASE_URL}|g" server.py
+            sed -i "s|eyJ[A-Za-z0-9_.-]\{100,\}|${SUPABASE_KEY}|g" server.py
+            echo "✓ server.py patched"
+          fi
+
+      - name: Verify
+        run: |
+          echo "--- Repo size ---" && du -sh .
+          echo "--- Root files ---" && ls -la
+          echo "--- ONNX survives ---"
+          find . -name "*.onnx" -exec ls -lh {} \;
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet && echo "Nothing to commit" || \
+            git commit -m "ci: surgical clean [skip ci]"
+          git push
