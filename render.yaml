@@ -1,25 +1,29 @@
 services:
   - type: web
-    name: synthia-os
-    runtime: node
-    plan: standard
-    buildCommand: npm install
+    name: paper-worlds-server
+    env: node
+    region: oregon
+    buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000
-      - key: SUPABASE_PRIMARY_URL
+        value: 3002
+      - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_PRIMARY_KEY
+      - key: SUPABASE_SERVICE_KEY
         sync: false
-      - key: SUPABASE_SECONDARY_URL
+      - key: SUPABASE_ANON_KEY
         sync: false
-      - key: SUPABASE_SECONDARY_KEY
+      - key: ANTHROPIC_API_KEY
         sync: false
-      - key: STELLAR_URL
+      - key: GITHUB_TOKEN
         sync: false
-      - key: STELLAR_API_KEY
+      - key: GITHUB_USERNAME
+        value: justappgrabbin
+      - key: SYNTHIA_URL
+        value: https://synthia-server.onrender.com
+      - key: CORS_ORIGINS
         sync: false
