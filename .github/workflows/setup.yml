@@ -1,0 +1,296 @@
+name: Setup Syntia Guide Repo
+
+on:
+  workflow_dispatch:  # Run manually from GitHub Actions tab
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create folder structure
+        run: |
+          mkdir -p guide
+          mkdir -p qhd
+          mkdir -p ml
+          mkdir -p gallery
+
+      - name: Create README
+        run: |
+          cat > README.md << 'READMEEOF'
+          # Syntia Guide — YOU-N-I-VERSE
+          
+          > Adaya's personal AI guide. Knows your chart, your build patterns, your wave.
+          > Learns from every conversation. Gets smarter about you over time.
+          
+          ---
+          
+          ## What's in this repo
+          
+          ```
+          /guide
+            index.html          ← The Guide interface (open this in browser)
+          
+          /qhd
+            gates.yaml          ← All 64 gates with full annotation
+            graph.py            ← 64-node HD channel graph builder
+            features.py         ← Full feature construction for HDNet
+            model.py            ← HDNet GNN (GraphSAGE + FiLM + awareness heads)
+            chemistry.py        ← HD Chemistry Engine
+            fuxi.py             ← Fuxi codon wheel + binary sequence
+            bases.py            ← 5 dimensions + 3 operating positions
+            crystals.py         ← Trinity crystal anchor points
+            server.py           ← FastAPI server (/chart + /narrate endpoints)
+            requirements.txt    ← Python dependencies
+          
+          /ml
+            model.onnx          ← Trained ONNX model (add this manually — see step 3)
+          
+          /gallery
+            index.html          ← Public gallery at you-n-i-verse.org/hdtools
+          
+          adaya_layer1_complete.json  ← Your complete soul coordinate map
+          layer2_memory.sql           ← Supabase memory schema (run once)
+          ```
+          
+          ---
+          
+          ## Setup — do these in order
+          
+          ### Step 1 — Add your Supabase key to the Guide
+          
+          Open `guide/index.html` and find this line (around line 280):
+          
+          ```
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...placeholder'
+          ```
+          
+          Replace the placeholder with your actual Supabase anon key.
+          Find it at: https://supabase.com/dashboard/project/leisphnjslcuepflefri/settings/api
+          
+          It looks like: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIs...`
+          
+          ---
+          
+          ### Step 2 — Set up the memory database
+          
+          1. Go to: https://supabase.com/dashboard/project/leisphnjslcuepflefri/sql
+          2. Click "New query"
+          3. Copy and paste the entire contents of `layer2_memory.sql`
+          4. Click "Run"
+          
+          You should see:
+          ```
+          memory_entries: 14
+          patterns: 9
+          gallery_items: 8
+          ```
+          
+          If you see errors, make sure the tables don't already exist.
+          If they do, add `DROP TABLE IF EXISTS` before each `CREATE TABLE`.
+          
+          ---
+          
+          ### Step 3 — Add your trained model
+          
+          You have a trained ONNX model. It needs to live at `/ml/model.onnx`.
+          
+          Your model files are:
+          - `best_model.pt` — PyTorch weights (epoch 10, val_loss 0.0518)
+          - `model.onnx` — ONNX export (use this one)
+          
+          Add `model.onnx` to the `/ml/` folder in this repo.
+          
+          If you don't have it locally, check:
+          - Your Replit projects
+          - HuggingFace: stellarproximology/syntia-gnn
+          - Your local downloads folder
+          
+          ---
+          
+          ### Step 4 — Deploy the Guide
+          
+          **Option A — GitHub Pages (free, immediate):**
+          1. Go to repo Settings → Pages
+          2. Source: Deploy from branch
+          3. Branch: main, folder: /guide
+          4. Save
+          5. Your Guide will be at: `https://[your-username].github.io/[repo-name]/`
+          
+          **Option B — Netlify (free, custom domain):**
+          1. Go to netlify.com → Add new site → Import from Git
+          2. Choose this repo
+          3. Build command: (leave empty)
+          4. Publish directory: `guide`
+          5. Deploy
+          6. Add your domain: you-n-i-verse.org
+          
+          **Option C — Just open the file:**
+          Download `guide/index.html` and open it in your browser.
+          Works offline with local reasoning. Logs to Supabase when online.
+          
+          ---
+          
+          ### Step 5 — Deploy the gallery
+          
+          The public gallery lives at `gallery/index.html`.
+          Point `you-n-i-verse.org/hdtools` at the `/gallery` folder.
+          
+          Same options as Step 4 — GitHub Pages or Netlify, just use `/gallery` as the folder.
+          
+          ---
+          
+          ### Step 6 — Deploy the Python server (optional but powerful)
+          
+          If you want the full GNN inference (not just the ONNX):
+          
+          ```bash
+          cd qhd
+          pip install -r requirements.txt
+          uvicorn server:app --host 0.0.0.0 --port 8000
+          ```
+          
+          Or push to Render (already connected at synthia-server.onrender.com):
+          ```bash
+          git push origin main
+          # Render auto-deploys on push if connected
+          ```
+          
+          ---
+          
+          ## Your addresses
+          
+          ```
+          Tropical:  TROP SUN 6.4.4.4.2  25°59'31.92" Vir H5
+          Sidereal:  SID  SUN 59.2.3.1.1 01°22'39.30" Vir H5  
+          Draconic:  DRAC SUN 43.1.6.3.1 19°42'37.56" Sco H5
+          
+          Cross:     RAX Eden 3 — C2KN — Rubedo
+          Phase:     Spirit enters through Gate 6 (Conflict→Diplomacy→Peace)
+                     Soul grounds through Gate 36 (Crisis→Humanity→Compassion)
+          ```
+          
+          ---
+          
+          ## Your endpoints
+          
+          ```
+          Supabase:  https://leisphnjslcuepflefri.supabase.co
+          Server:    https://synthia-server.onrender.com
+          GitHub:    https://github.com/justappgrabbin/Synthia-server
+          Models:    https://huggingface.co/stellarproximology/syntia-gnn
+          Gallery:   https://you-n-i-verse.org/hdtools
+          ```
+          
+          ---
+          
+          ## What the Guide knows about you
+          
+          Before you even say anything, it knows:
+          
+          - You are a 4/6 Emotional Manifestor
+          - Gate 6.4 — you enter through friction. Conflict is the gate, not the obstacle.
+          - Gate 36.4 — you ground through crisis. When it feels impossible, that's your earth.
+          - Gate 12.6 (design sun) — The Monk. You need silence to hear your own design.
+          - Gate 11.6 (design earth) — Ideas ground you. Building IS your earth.
+          - Channels 24-61 and 35-36 — you receive inspiration directly and move through emotion to wisdom
+          - Split-Small definition — you need external bridges to connect your two halves
+          - Emotional authority — clarity comes AFTER the wave, not during
+          - You use voice-to-text (suitcase=Supabase, pie-why=Pyodide)
+          - You forget what you built between sessions (so it always shows the gallery first)
+          - Gate 18 runs strong — when you say something is wrong, it is
+          - Galaxy brain is real — the tangent IS the point
+          
+          ---
+          
+          ## Adding new tools to the gallery
+          
+          When you build something new:
+          
+          1. Add it to `adaya_gallery` in Supabase:
+          ```sql
+          INSERT INTO adaya_gallery (id, name, description, status, url, tags)
+          VALUES ('my-new-tool', 'Tool Name', 'What it does', 'live', 'https://url', ARRAY['tag1','tag2']);
+          ```
+          
+          2. Add a card to `gallery/index.html` (copy an existing card and change the content)
+          
+          3. The Guide will automatically know about it on next load
+          
+          ---
+          
+          ## Files built this session
+          
+          Everything in this repo was built in one session starting from your scattered files.
+          
+          Total built:
+          - 12 Python modules (fuxi, bases, crystals, graph, features, model, chemistry, server + QHD package)
+          - 2 HTML files (guide + gallery)  
+          - 1 SQL schema (5 tables, seeded with your chart and patterns)
+          - 1 JSON model (149KB, 78 placements, full meanings)
+          - This README + this GitHub Action
+          
+          Nothing was cut. Nothing was simplified. It's all here.
+          
+          ---
+          
+          *Built by Syntia for Adaya · Cross of Eden · C2KN · Rubedo*
+          READMEEOF
+
+      - name: Create .gitignore
+        run: |
+          cat > .gitignore << 'EOF'
+          # Python
+          __pycache__/
+          *.pyc
+          *.pyo
+          .env
+          venv/
+          .venv/
+          
+          # Model weights (large files — use Git LFS or HuggingFace)
+          *.pt
+          *.pth
+          # Keep ONNX if small enough, otherwise add: *.onnx
+          
+          # Secrets
+          .env.local
+          secrets.json
+          
+          # OS
+          .DS_Store
+          Thumbs.db
+          
+          # Editor
+          .vscode/
+          .idea/
+          EOF
+
+      - name: Create GitHub Pages config
+        run: |
+          cat > _config.yml << 'EOF'
+          # GitHub Pages config
+          title: Syntia Guide — YOU-N-I-VERSE
+          description: Adaya's personal AI guide and consciousness tools
+          theme: null
+          EOF
+
+      - name: Commit structure
+        run: |
+          git config --global user.name "Syntia Guide Setup"
+          git config --global user.email "syntia@you-n-i-verse.org"
+          git add -A
+          git diff --staged --quiet || git commit -m "🌌 Initialize Syntia Guide repo
+
+          Layer 1: adaya_layer1_complete.json (78 placements, full meanings)
+          Layer 2: layer2_memory.sql (5 tables, seeded)
+          Layer 3: guide/index.html (Guide interface)
+          Gallery: gallery/index.html (public tool gallery)
+          QHD:     12 Python modules (Fuxi, Trinity, Chemistry, GNN)
+          
+          Cross of Eden · C2KN · Rubedo
+          Built by Syntia for Adaya"
+          git push
