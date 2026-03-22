@@ -1,36 +1,29 @@
 {
-  "name": "paper-worlds-server",
-  "version": "1.0.0",
-  "description": "Paper Worlds Backend — artifact mesh, gap filler, mixer, graph, GitHub publisher",
-  "main": "dist/index.js",
+  "name": "synthia-os",
+  "version": "2.0.0",
+  "description": "Self-modifying ontological operating system",
+  "main": "server/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "lint": "tsc --noEmit"
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "test": "node test/deploy.test.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
     "@supabase/supabase-js": "^2.39.0",
-    "archiver": "^7.0.1",
+    "compression": "^1.7.4",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.1.0",
+    "helmet": "^7.1.0",
     "multer": "^1.4.5-lts.1",
-    "node-fetch": "^3.3.2",
-    "uuid": "^9.0.1",
-    "ws": "^8.17.0"
+    "node-cron": "^3.0.3",
+    "onnxruntime-node": "^1.16.0",
+    "simple-git": "^3.20.0",
+    "ws": "^8.14.2"
   },
-  "devDependencies": {
-    "@types/archiver": "^6.0.2",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/multer": "^1.4.11",
-    "@types/node": "^20.12.0",
-    "@types/uuid": "^9.0.8",
-    "@types/ws": "^8.5.10",
-    "tsx": "^4.7.2",
-    "typescript": "^5.4.5"
-  },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
