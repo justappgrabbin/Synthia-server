@@ -1,0 +1,79 @@
+name: Build + Deploy
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject environment variables into all HTML files
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SYNTHIA_URL: ${{ secrets.SYNTHIA_URL }}
+        run: |
+          echo "→ Injecting env vars into HTML files..."
+
+          for file in *.html; do
+            [ -f "$file" ] || continue
+
+            # Replace any hardcoded Supabase URL
+            sed -i "s|https://[a-zA-Z0-9]*\.supabase\.co|${SUPABASE_URL}|g" "$file"
+
+            # Replace any hardcoded Supabase JWT key
+            sed -i "s|eyJ[A-Za-z0-9_.-]\{100,\}|${SUPABASE_KEY}|g" "$file"
+
+            # Replace Synthia server URL if overridden
+            if [ -n "$SYNTHIA_URL" ]; then
+              sed -i "s|https://synthia-server\.onrender\.com|${SYNTHIA_URL}|g" "$file"
+            fi
+
+            echo "  ✓ $file"
+          done
+
+          echo "✓ All HTML files patched"
+
+      - name: Inject into server.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          if [ -f server.py ]; then
+            sed -i "s|https://[a-zA-Z0-9]*\.supabase\.co|${SUPABASE_URL}|g" server.py
+            sed -i "s|eyJ[A-Za-z0-9_.-]\{100,\}|${SUPABASE_KEY}|g" server.py
+            echo "✓ server.py patched"
+          fi
+
+      - name: Verify clean
+        run: |
+          BAD_IDS=("idtictmmcahtmonnwstz")
+          FOUND=0
+          for id in "${BAD_IDS[@]}"; do
+            if grep -r "$id" --include="*.html" --include="*.py" . 2>/dev/null; then
+              echo "✗ Old project ID still present: $id"
+              FOUND=1
+            fi
+          done
+          if [ $FOUND -eq 0 ]; then
+            echo "✓ No stale credentials found"
+          else
+            exit 1
+          fi
+
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+
+      - name: Deploy to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          netlify deploy --prod --dir=. --message="Deploy from GitHub Actions"
+          echo "✓ Deployed to Netlify"
