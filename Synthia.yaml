@@ -1,0 +1,463 @@
+
+# Create comprehensive synthia.yaml configuration
+
+synthia_yaml = '''# ═══════════════════════════════════════════════════════════════════════════════
+# SYNTHIA ECOSYSTEM CONFIGURATION
+# Neural Research System + TRIDENT + Dashboard + Mesh Integration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: "2.0.0"
+name: "Synthia Neural Research Platform"
+description: "Autonomous stellar proximology research with human-in-the-loop AI"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CORE SYSTEMS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+core:
+  # TRIDENT 3-Head Language Model
+  trident:
+    enabled: true
+    path: "./model.py"
+    heads:
+      code:
+        name: "Code Generation"
+        model: "codeparrot/codegen-350M-multi"
+        temperature: 0.7
+        max_tokens: 512
+      math:
+        name: "Mathematical Reasoning"
+        model: "trl-internal-testing/tiny-random-LlamaForCausalLM"
+        temperature: 0.3
+        max_tokens: 256
+      research:
+        name: "Scientific Research"
+        model: "microsoft/DialoGPT-medium"
+        temperature: 0.8
+        max_tokens: 1024
+        # Research head validates stellar proximology decisions
+    
+    router:
+      type: "keyword"
+      fallback: "research"  # Default to research for scientific queries
+  
+  # P2P RAG System
+  rag:
+    enabled: true
+    path: "./rag.py"
+    signal_server: "ws://localhost:8765"
+    ice_servers:
+      - "stun:stun.l.google.com:19302"
+    max_peers: 10
+    chunk_size: 512
+    overlap: 50
+    
+  # MCP Server (Claude Desktop Integration)
+  mcp:
+    enabled: true
+    path: "./mcp_server.py"
+    port: 8001
+    tools:
+      - name: "neural_research_confidence"
+        description: "Calculate confidence for autonomous research decision"
+        parameters:
+          action: string
+          context: string
+          available_data: object
+        returns: "confidence_score (0-100)"
+      
+      - name: "stellar_analyze"
+        description: "Analyze stellar proximity data"
+        parameters:
+          dataset: string
+          analysis_type: "proximity|distribution|anomaly"
+        returns: "analysis_result"
+      
+      - name: "generate_paper"
+        description: "Generate research paper from findings"
+        parameters:
+          title: string
+          findings: array
+          style: "academic|technical|popular"
+        returns: "paper_content"
+      
+      - name: "launch_app"
+        description: "Deploy research application"
+        parameters:
+          app_type: "visualizer|analyzer|map|assistant"
+          config: object
+        returns: "app_url"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NEURAL RESEARCH SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════════
+
+neural_research:
+  enabled: true
+  path: "./neural_core.py"
+  
+  # Confidence-based decision thresholds
+  thresholds:
+    auto_approve: 85      # Proceed without asking above this
+    ask_user: 60          # Ask for approval between 60-85
+    block: 0             # Block below 60
+  
+  # Research modules
+  modules:
+    stellar_proximology:
+      enabled: true
+      data_sources:
+        - "gaia_dr3"
+        - "hipparcos"
+        - "simbad"
+      analysis_methods:
+        - "distance_calculation"
+        - "spatial_distribution"
+        - "anomaly_detection"
+        - "pattern_recognition"
+      auto_paper_threshold: 3  # Patterns found before paper generation
+      
+  # LLM Validation
+  llm:
+    provider: "openai"  # or "anthropic", "local", "trident"
+    endpoint: "https://api.openai.com/v1"
+    model: "gpt-4"
+    temperature: 0.7
+    api_key: "${OPENAI_API_KEY}"  # From environment
+    
+    # Fallback to TRIDENT research head if LLM unavailable
+    fallback_to_trident: true
+  
+  # Autonomous behaviors
+  autonomy:
+    research: "assisted"    # autonomous|assisted|manual
+    papers: "assisted"
+    apps: "assisted"
+    max_auto_per_hour: 10   # Rate limit for auto-approvals
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DASHBOARD / WEB INTERFACE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+dashboard:
+  enabled: true
+  path: "./dashboard/"
+  index: "index.html"
+  
+  # Server configuration
+  server:
+    type: "fastapi"  # fastapi|flask|static
+    host: "0.0.0.0"
+    port: 8080
+    cors_origins:
+      - "http://localhost:3000"
+      - "https://synthia-server.onrender.com"
+    
+  # Features
+  features:
+    neural_chat: true
+    confidence_monitor: true
+    stellar_viz: true
+    paper_preview: true
+    app_management: true
+    system_logs: true
+    settings_panel: true
+  
+  # API endpoints (if using FastAPI/Flask)
+  api:
+    prefix: "/api"
+    endpoints:
+      - path: "/research/start"
+        method: "POST"
+        handler: "neural.startResearch"
+      - path: "/research/status"
+        method: "GET"
+        handler: "neural.getStatus"
+      - path: "/paper/generate"
+        method: "POST"
+        handler: "neural.generatePaper"
+      - path: "/app/launch"
+        method: "POST"
+        handler: "neural.launchApp"
+      - path: "/confidence"
+        method: "GET"
+        handler: "neural.getConfidence"
+      - path: "/logs"
+        method: "GET"
+        handler: "system.getLogs"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MESH NETWORK REGISTRATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+mesh:
+  enabled: true
+  node_id: "synthia-research-${HOSTNAME}"
+  name: "Synthia Neural Research Node"
+  
+  registry:
+    url: "https://mesh-registry.synthia.io"
+    heartbeat_interval: 30
+    
+  capabilities:
+    - "5w-analysis"
+    - "stellar-proximology"
+    - "paper-generation"
+    - "app-deployment"
+    - "neural-confidence"
+    
+  connections:
+    - name: "morphing-gnn"
+      type: "gnn"
+      endpoint: "https://morphing-gnn.synthia.io"
+      purpose: "Dynamic graph analysis"
+      
+    - name: "autonomous-integrator"
+      type: "integrator"
+      endpoint: "https://integrator.synthia.io"
+      purpose: "5W app analysis"
+      
+    - name: "cosmic-generator"
+      type: "generator"
+      endpoint: "https://cosmic.synthia.io"
+      purpose: "13-placement addresses"
+      
+    - name: "trident-core"
+      type: "llm"
+      endpoint: "http://localhost:8001"
+      purpose: "3-head language model"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REPOSITORIES & EXTERNAL LINKS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+repositories:
+  syntha_server:
+    url: "https://github.com/justappgrabbin/Synthia-server"
+    branch: "main"
+    components:
+      - "trident/"
+      - "rag.py"
+      - "mcp_server.py"
+      - "dashboard/"
+      
+  morphing_gnn:
+    url: "https://github.com/yourusername/morphing-gnn"
+    branch: "main"
+    
+  autonomous_integrator:
+    url: "https://github.com/yourusername/autonomous-integrator"
+    branch: "main"
+    
+  cosmic_generator:
+    url: "https://github.com/yourusername/cosmic-generator"
+    branch: "main"
+    
+  tribrain_kernel:
+    url: "https://github.com/yourusername/tribrain-kernel"
+    branch: "main"
+    
+  paper_prime:
+    url: "https://github.com/yourusername/paper-prime"
+    branch: "main"
+
+external:
+  production: "https://synthia-server.onrender.com"
+  dashboard: "https://synthia-dashboard.vercel.app"
+  docs: "https://synthia-docs.gitbook.io"
+  status: "https://synthia-mesh.statuspage.io"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATA & STORAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+storage:
+  type: "local"  # local|s3|ipfs
+  
+  local:
+    data_dir: "./data"
+    papers_dir: "./papers"
+    apps_dir: "./apps"
+    logs_dir: "./logs"
+    
+  stellar_data:
+    sources:
+      gaia_dr3:
+        url: "https://gea.esac.esa.int/archive/"
+        tables: ["gaiadr3.gaia_source"]
+      hipparcos:
+        url: "https://cdsarc.u-strasbg.fr/viz-bin/Cat?I/239"
+      simbad:
+        url: "http://simbad.u-strasbg.fr/simbad/"
+    
+    cache:
+      enabled: true
+      max_size: "10GB"
+      ttl: 86400  # 24 hours
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOGGING & MONITORING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+logging:
+  level: "INFO"  # DEBUG|INFO|WARNING|ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  outputs:
+    - type: "console"
+    - type: "file"
+      path: "./logs/synthia.log"
+      rotation: "daily"
+    - type: "web"
+      dashboard: true
+      
+  categories:
+    neural: true
+    research: true
+    trident: true
+    rag: true
+    mesh: true
+    mcp: true
+
+monitoring:
+  enabled: true
+  metrics:
+    - "confidence_score"
+    - "decisions_auto"
+    - "decisions_ask"
+    - "decisions_block"
+    - "stars_analyzed"
+    - "patterns_found"
+    - "papers_generated"
+    - "apps_launched"
+    - "trident_latency"
+    - "rag_peers_connected"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+security:
+  cors:
+    enabled: true
+    origins: ["*"]  # Restrict in production
+    
+  api_keys:
+    required: false  # Set to true for production
+    keys:
+      - name: "dashboard"
+        key: "${DASHBOARD_API_KEY}"
+      - name: "mesh"
+        key: "${MESH_API_KEY}"
+        
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst: 10
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STARTUP SEQUENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+startup:
+  sequence:
+    - step: 1
+      name: "Initialize TRIDENT"
+      command: "python model.py --init"
+      critical: true
+      
+    - step: 2
+      name: "Start RAG Signal Server"
+      command: "python signal_server.py"
+      port: 8765
+      critical: false
+      
+    - step: 3
+      name: "Start MCP Server"
+      command: "python mcp_server.py"
+      port: 8001
+      critical: true
+      
+    - step: 4
+      name: "Initialize Neural Core"
+      command: "python neural_core.py --init"
+      critical: true
+      
+    - step: 5
+      name: "Register to Mesh"
+      command: "python mesh_client.py --register"
+      critical: false
+      
+    - step: 6
+      name: "Start Dashboard"
+      command: "python web_server.py"
+      port: 8080
+      critical: false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPLOYMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+deployment:
+  platforms:
+    render:
+      type: "web_service"
+      build_command: "pip install -r requirements.txt"
+      start_command: "python web_server.py"
+      env_vars:
+        - OPENAI_API_KEY
+        - MESH_API_KEY
+        - DASHBOARD_API_KEY
+        
+    vercel:
+      type: "static"
+      directory: "dashboard"
+      
+    docker:
+      enabled: true
+      image: "synthia-research:latest"
+      ports:
+        - "8080:8080"  # Dashboard
+        - "8001:8001"  # MCP
+        - "8765:8765"  # WebSocket
+      volumes:
+        - "./data:/app/data"
+        - "./papers:/app/papers"
+        - "./logs:/app/logs"
+'''
+
+# Save the YAML file
+yaml_path = "/mnt/kimi/output/synthia.yaml"
+with open(yaml_path, 'w') as f:
+    f.write(synthia_yaml)
+
+print("="*70)
+print("✅ SYNTHIA.YAML CONFIGURATION CREATED")
+print("="*70)
+print(f"Location: {yaml_path}")
+print(f"Size: {len(synthia_yaml)} characters")
+print("\n📋 SECTIONS INCLUDED:")
+print("  1. core - TRIDENT, RAG, MCP server configs")
+print("  2. neural_research - Confidence thresholds, LLM, autonomy settings")
+print("  3. dashboard - Web interface, API endpoints, features")
+print("  4. mesh - Network registration, node capabilities, connections")
+print("  5. repositories - All repo links (synthia-server, morphing-gnn, etc.)")
+print("  6. external - Production URLs, docs, status pages")
+print("  7. storage - Data directories, stellar sources, cache")
+print("  8. logging - Log levels, outputs, monitoring metrics")
+print("  9. security - CORS, API keys, rate limiting")
+print("  10. startup - Initialization sequence (6 steps)")
+print("  11. deployment - Render, Vercel, Docker configs")
+print("\n🎯 USAGE:")
+print("  1. Copy synthia.yaml to your repo root")
+print("  2. Update placeholder values (URLs, API keys)")
+print("  3. Use with Python:")
+print("     import yaml")
+print("     config = yaml.safe_load(open('synthia.yaml'))")
+print("  4. Or use with docker-compose, Kubernetes, etc.")
+print("\n🔗 INTEGRATION:")
+print("  - TRIDENT research head validates decisions")
+print("  - RAG provides knowledge for paper generation")
+print("  - MCP exposes tools to dashboard")
+print("  - Mesh connects to GNN, Integrator, Cosmic nodes")
+print("  - Dashboard serves as central control panel")
