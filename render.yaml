@@ -1,19 +1,12 @@
 services:
   - type: web
-    name: synthia-os
+    name: synthia-server
     runtime: python
-    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    startCommand: python server.py
     healthCheckPath: /health
     envVars:
+      - key: PORT
+        value: 10000
       - key: GROQ_KEY
-        sync: true
-      - key: SUPABASE_PRIMARY_URL
-        sync: false
-      - key: SUPABASE_PRIMARY_KEY
-        sync: false
-      - key: SUPABASE_SECONDARY_URL
-        sync: false
-      - key: SUPABASE_SECONDARY_KEY
         sync: false
