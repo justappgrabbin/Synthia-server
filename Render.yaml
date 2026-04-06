@@ -1,26 +1,21 @@
-render.yaml
 services:
   - type: web
     name: synthia-node
     runtime: node
-    rootDir: node
+    rootDir: server
     buildCommand: npm install
-    startCommand: node server.js
+    startCommand: node index.js
     envVars:
       - key: PYTHON_SERVICE_URL
         value: https://synthia-python.onrender.com
       - key: PORT
-        fromService:
-          type: web
-          name: synthia-python
-          property: port
+        value: 10001
 
   - type: web
     name: synthia-python
     runtime: python
-    rootDir: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn server:app --host 0.0.0.0 --port 10000
     envVars:
       - key: GROQ_API_KEY
         sync: false
