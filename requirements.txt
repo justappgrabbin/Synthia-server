@@ -7,3 +7,5 @@ aiortc>=1.6.0
 numpy>=1.24.0
 httpx>=0.25.0
 sse-starlette>=1.6.0
+onnxruntime>=1.16.0
+pyswisseph>=2.10.0
