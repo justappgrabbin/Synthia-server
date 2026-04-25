@@ -2,14 +2,15 @@ services:
   - type: web
     name: synthia-node
     runtime: node
-    rootDir: server
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: node server/index.js
     envVars:
-      - key: PYTHON_SERVICE_URL
-        value: https://synthia-python.onrender.com
+      - key: SUPABASE_PRIMARY_URL
+        sync: false
+      - key: SUPABASE_PRIMARY_KEY
+        sync: false
       - key: PORT
-        value: 10001
+        value: 10000
 
   - type: web
     name: synthia-python
