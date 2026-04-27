@@ -21,6 +21,7 @@
     "node-cron": "^3.0.3",
     "onnxruntime-node": "^1.16.0",
     "simple-git": "^3.20.0",
+    "socket.io": "^4.7.5",
     "ws": "^8.14.2"
   },
   "engines": {
