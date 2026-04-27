@@ -6,6 +6,8 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const crypto = require('crypto');
+const http = require('http');
+const { WebSocketServer } = require('ws');
 const { createClient } = require('@supabase/supabase-js');
 
 const tridentBridge = require('./gnn/bridge');
@@ -24,6 +26,18 @@ function makeSupabaseClient(label, url, key) {
   }
 
   return createClient(url, key);
+}
+
+function safeJsonParse(raw) {
+  try {
+    return JSON.parse(raw.toString());
+  } catch (_error) {
+    return null;
+  }
+}
+
+function sendSocket(socket, payload) {
+  if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(payload));
 }
 
 const primarySupabase = makeSupabaseClient(
@@ -50,7 +64,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use('/phone', express.static(path.join(__dirname, '../phone')));
 
-app.get('/health', async (req, res) => {
+app.get('/', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'synthia-os',
+    version: '2.0.0',
+    health: '/health',
+    websocket: '/ws',
+    trident_ready: tridentBridge.ready,
+    database: primarySupabase ? 'connected' : 'degraded'
+  });
+});
+
+app.get('/health', async (_req, res) => {
   let graphNodes = 0;
   let database = primarySupabase ? 'connected' : 'degraded';
 
@@ -69,8 +95,10 @@ app.get('/health', async (req, res) => {
 
   res.json({
     status: 'healthy',
+    ok: true,
     database,
     trident_ready: tridentBridge.ready,
+    websocket: '/ws',
     graph_nodes: graphNodes,
     version: '2.0.0',
     timestamp: new Date().toISOString()
@@ -179,7 +207,7 @@ app.post('/api/drop', async (req, res) => {
   }
 });
 
-app.get('/api/graph', async (req, res) => {
+app.get('/api/graph', async (_req, res) => {
   if (!primarySupabase) return res.json([]);
 
   const { data, error } = await primarySupabase
@@ -190,6 +218,76 @@ app.get('/api/graph', async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   res.json(data || []);
 });
+
+app.get('/api/artifacts', async (_req, res) => {
+  if (!primarySupabase) return res.json({ artifacts: [], database: 'degraded' });
+
+  const { data, error } = await primarySupabase
+    .from('code_drops')
+    .select('id, filename, language, detected_capabilities, recommended_mode, confidence, status, created_at')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ artifacts: data || [] });
+});
+
+function attachTridentWebSocket(server) {
+  const wss = new WebSocketServer({ server, path: '/ws' });
+
+  wss.on('connection', (socket) => {
+    sendSocket(socket, {
+      type: 'trident.status',
+      ok: true,
+      ready: tridentBridge.ready,
+      database: primarySupabase ? 'connected' : 'degraded',
+      websocket: '/ws',
+      timestamp: new Date().toISOString()
+    });
+
+    socket.on('message', async (raw) => {
+      const msg = safeJsonParse(raw);
+      if (!msg) return sendSocket(socket, { type: 'error', error: 'invalid_json' });
+
+      try {
+        if (msg.type === 'ping') {
+          return sendSocket(socket, { type: 'pong', timestamp: new Date().toISOString() });
+        }
+
+        if (msg.type === 'status' || msg.type === 'trident.status') {
+          return sendSocket(socket, {
+            type: 'trident.status',
+            ok: true,
+            ready: tridentBridge.ready,
+            database: primarySupabase ? 'connected' : 'degraded',
+            websocket: '/ws',
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        if (msg.type === 'intent') {
+          if (!msg.intent) return sendSocket(socket, { type: 'error', error: 'intent required' });
+          const result = await tridentBridge.analyzeIntent(msg.intent, msg.context || {});
+          return sendSocket(socket, { type: 'intent.result', result, timestamp: new Date().toISOString() });
+        }
+
+        if (msg.type === 'drop') {
+          if (!msg.filename || !msg.content) {
+            return sendSocket(socket, { type: 'error', error: 'filename and content required' });
+          }
+          const result = await tridentBridge.analyzeCode(msg.filename, msg.content, msg.ast || {});
+          return sendSocket(socket, { type: 'drop.result', result, timestamp: new Date().toISOString() });
+        }
+
+        return sendSocket(socket, { type: 'error', error: 'unknown_message_type', received_type: msg.type || null });
+      } catch (error) {
+        return sendSocket(socket, { type: 'error', error: error.message });
+      }
+    });
+  });
+
+  return wss;
+}
 
 async function startup() {
   console.log('🚀 Synthia OS starting...');
@@ -210,9 +308,13 @@ async function startup() {
 
   app.locals.engines = { modifier, governance, consent, overlay };
 
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+  app.locals.websocket = attachTridentWebSocket(server);
+
+  server.listen(PORT, () => {
     console.log(`✓ Server on port ${PORT}`);
     console.log(`✓ Health: http://localhost:${PORT}/health`);
+    console.log('✓ WebSocket: /ws');
     console.log('✓ All engines initialized');
   });
 }
