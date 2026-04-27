@@ -11,6 +11,7 @@ const { WebSocketServer } = require('ws');
 const { createClient } = require('@supabase/supabase-js');
 
 const tridentBridge = require('./gnn/bridge');
+const attachSocketMesh = require('./live/socketMesh');
 const SelfImprovementEngine = require('./engine/selfImprove');
 const GovernanceEngine = require('./governance/engine');
 const UserConsentLayer = require('./governance/userConsent');
@@ -71,6 +72,7 @@ app.get('/', (_req, res) => {
     version: '2.0.0',
     health: '/health',
     websocket: '/ws',
+    socketio: '/socket.io',
     trident_ready: tridentBridge.ready,
     database: primarySupabase ? 'connected' : 'degraded'
   });
@@ -99,6 +101,7 @@ app.get('/health', async (_req, res) => {
     database,
     trident_ready: tridentBridge.ready,
     websocket: '/ws',
+    socketio: '/socket.io',
     graph_nodes: graphNodes,
     version: '2.0.0',
     timestamp: new Date().toISOString()
@@ -310,11 +313,13 @@ async function startup() {
 
   const server = http.createServer(app);
   app.locals.websocket = attachTridentWebSocket(server);
+  app.locals.socketMesh = attachSocketMesh(server, { tridentBridge, primarySupabase });
 
   server.listen(PORT, () => {
     console.log(`✓ Server on port ${PORT}`);
     console.log(`✓ Health: http://localhost:${PORT}/health`);
     console.log('✓ WebSocket: /ws');
+    console.log('✓ Socket.IO mesh: /socket.io');
     console.log('✓ All engines initialized');
   });
 }
