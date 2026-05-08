@@ -1,0 +1,74 @@
+name: Populate Repo From ZIP
+
+on:
+  workflow_dispatch:
+    inputs:
+      zip_path:
+        description: "Path to ZIP inside repo"
+        required: true
+        default: "_incoming/synth-admin-panel.zip"
+      target_dir:
+        description: "Where to unpack files"
+        required: true
+        default: "apps/admin"
+
+permissions:
+  contents: write
+
+jobs:
+  populate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Validate ZIP exists
+        run: |
+          test -f "${{ github.event.inputs.zip_path }}" || {
+            echo "ZIP not found: ${{ github.event.inputs.zip_path }}"
+            exit 1
+          }
+
+      - name: Extract ZIP to temp directory
+        run: |
+          rm -rf /tmp/populate-zip
+          mkdir -p /tmp/populate-zip
+          unzip -o "${{ github.event.inputs.zip_path }}" -d /tmp/populate-zip
+
+      - name: Prepare target directory
+        run: |
+          TARGET="${{ github.event.inputs.target_dir }}"
+          rm -rf "$TARGET"
+          mkdir -p "$TARGET"
+
+      - name: Flatten and copy into target
+        run: |
+          TARGET="${{ github.event.inputs.target_dir }}"
+
+          ROOT_COUNT="$(find /tmp/populate-zip -mindepth 1 -maxdepth 1 | wc -l)"
+
+          if [ "$ROOT_COUNT" -eq 1 ] && [ -d "$(find /tmp/populate-zip -mindepth 1 -maxdepth 1)" ]; then
+            ROOT_DIR="$(find /tmp/populate-zip -mindepth 1 -maxdepth 1)"
+            cp -a "$ROOT_DIR"/. "$TARGET"/
+          else
+            cp -a /tmp/populate-zip/. "$TARGET"/
+          fi
+
+      - name: Show result
+        run: |
+          find "${{ github.event.inputs.target_dir }}" -maxdepth 3 -type f | head -100
+
+      - name: Commit populated files
+        run: |
+          git config user.name "synth-orchestrator"
+          git config user.email "actions@github.com"
+
+          git add "${{ github.event.inputs.target_dir }}"
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Populate ${{ github.event.inputs.target_dir }} from ZIP"
+            git push
+          fi
