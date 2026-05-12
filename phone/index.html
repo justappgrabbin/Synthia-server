@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Synthia Control Room</title>
+  <style>
+    :root{color-scheme:dark;--bg:#080706;--panel:#15110c;--line:#3a2b14;--gold:#f5c518;--amber:#e8921a;--green:#10d474;--text:#fff8e6;--muted:#b8a98a;--bad:#ff5959}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:radial-gradient(circle at top,#281b08 0,#080706 46rem);color:var(--text)}main{width:min(1080px,94vw);margin:0 auto;padding:28px 0 44px}header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap}h1{margin:0;font-size:clamp(32px,7vw,68px);letter-spacing:-.06em;line-height:.92}.pill{border:1px solid var(--line);background:rgba(245,197,24,.08);color:var(--gold);padding:8px 12px;border-radius:999px;font-size:13px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}.card{border:1px solid var(--line);background:rgba(21,17,12,.86);box-shadow:0 20px 80px rgba(0,0,0,.3);border-radius:24px;padding:18px}.muted{color:var(--muted)}textarea,input{width:100%;border:1px solid var(--line);background:#0d0b08;color:var(--text);border-radius:16px;padding:12px;font:inherit}textarea{min-height:156px;resize:vertical}button{border:0;background:linear-gradient(135deg,var(--gold),var(--amber));color:#1b1203;font-weight:800;border-radius:14px;padding:12px 16px;cursor:pointer}button:disabled{opacity:.55}.stack{display:grid;gap:12px}.drop{border:1px dashed var(--amber);border-radius:20px;padding:22px;text-align:center;background:rgba(232,146,26,.08)}pre{white-space:pre-wrap;word-break:break-word;background:#0d0b08;border:1px solid var(--line);border-radius:16px;padding:14px;min-height:120px;max-height:390px;overflow:auto}.status{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{border:1px solid var(--line);border-radius:18px;padding:12px;background:rgba(255,255,255,.03)}.metric strong{display:block;color:var(--gold);font-size:24px}@media(max-width:820px){.grid,.status{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main>
+    <header><div><h1>Synthia<br>Control Room</h1><p class="muted">Health check, chat request, and selected-file analyzer.</p></div><span id="statusPill" class="pill">checking health</span></header>
+    <section class="status"><div class="metric"><span class="muted">Database</span><strong id="db">?</strong></div><div class="metric"><span class="muted">Trident</span><strong id="trident">?</strong></div><div class="metric"><span class="muted">Socket</span><strong id="socket">?</strong></div></section>
+    <div class="grid" style="margin-top:16px">
+      <section class="card stack"><h2>Chat request</h2><textarea id="intent" placeholder="Describe what you want Synthia to build, inspect, or fix."></textarea><button id="sendIntent">Send</button><pre id="chatOut">Ready.</pre></section>
+      <section class="card stack"><h2>Selected file analyzer</h2><div class="drop"><p><strong>Choose text or code files</strong></p><p class="muted">Your browser reads only files you select here, then sends their text to this server's existing /api/drop route.</p><input id="files" type="file" multiple></div><pre id="uploadOut">No files selected.</pre></section>
+    </div>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const print = (el, value) => { el.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2); };
+    async function health(){try{const res=await fetch('/health');const data=await res.json();$('statusPill').textContent=data.ok?'healthy':'degraded';$('db').textContent=data.database||'?';$('trident').textContent=data.trident_ready?'ready':'fallback';$('socket').textContent=data.websocket||'/ws';}catch(error){$('statusPill').textContent='health error';print($('chatOut'),error.message);}}
+    $('sendIntent').onclick=async()=>{const intent=$('intent').value.trim();if(!intent)return print($('chatOut'),'Enter a request first.');$('sendIntent').disabled=true;try{const res=await fetch('/api/intent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent,context:{surface:'phone-control-room'}})});print($('chatOut'),await res.json());}catch(error){print($('chatOut'),error.message);}finally{$('sendIntent').disabled=false;}};
+    async function sendSelectedFile(file){const content=await file.text();const res=await fetch('/api/drop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:file.name,content,context:{source:'selected-file-analyzer'}})});return {file:file.name,result:await res.json()};}
+    $('files').addEventListener('change',async(event)=>{const files=Array.from(event.target.files||[]);if(!files.length)return;print($('uploadOut'),'Analyzing '+files.length+' selected file(s)...');const results=[];for(const file of files){try{results.push(await sendSelectedFile(file));}catch(error){results.push({file:file.name,error:error.message});}}print($('uploadOut'),results);});
+    health();
+  </script>
+</body>
+</html>
