@@ -16,6 +16,7 @@ const SelfImprovementEngine = require('./engine/selfImprove');
 const GovernanceEngine = require('./governance/engine');
 const UserConsentLayer = require('./governance/userConsent');
 const PersonalOverlayEngine = require('./overlay/engine');
+const { attachMRNNRoutes, handleMRNNSocket } = require('./mrnn/routes');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -73,6 +74,7 @@ app.get('/', (_req, res) => {
     health: '/health',
     websocket: '/ws',
     socketio: '/socket.io',
+    mrnn: '/mrnn/status',
     trident_ready: tridentBridge.ready,
     database: primarySupabase ? 'connected' : 'degraded'
   });
@@ -102,6 +104,7 @@ app.get('/health', async (_req, res) => {
     trident_ready: tridentBridge.ready,
     websocket: '/ws',
     socketio: '/socket.io',
+    mrnn: '/mrnn/status',
     graph_nodes: graphNodes,
     version: '2.0.0',
     timestamp: new Date().toISOString()
@@ -245,6 +248,7 @@ function attachTridentWebSocket(server) {
       ready: tridentBridge.ready,
       database: primarySupabase ? 'connected' : 'degraded',
       websocket: '/ws',
+      mrnn: app.locals.mrnn ? 'available' : 'degraded',
       timestamp: new Date().toISOString()
     });
 
@@ -253,6 +257,9 @@ function attachTridentWebSocket(server) {
       if (!msg) return sendSocket(socket, { type: 'error', error: 'invalid_json' });
 
       try {
+        const mrnnSocketResult = await handleMRNNSocket(msg, app.locals.mrnn);
+        if (mrnnSocketResult) return sendSocket(socket, mrnnSocketResult);
+
         if (msg.type === 'ping') {
           return sendSocket(socket, { type: 'pong', timestamp: new Date().toISOString() });
         }
@@ -264,6 +271,7 @@ function attachTridentWebSocket(server) {
             ready: tridentBridge.ready,
             database: primarySupabase ? 'connected' : 'degraded',
             websocket: '/ws',
+            mrnn: app.locals.mrnn ? 'available' : 'degraded',
             timestamp: new Date().toISOString()
           });
         }
@@ -310,6 +318,7 @@ async function startup() {
   const overlay = new PersonalOverlayEngine(primarySupabase, process.env.STELLAR_URL);
 
   app.locals.engines = { modifier, governance, consent, overlay };
+  attachMRNNRoutes(app, { tridentBridge, primarySupabase });
 
   const server = http.createServer(app);
   app.locals.websocket = attachTridentWebSocket(server);
@@ -320,6 +329,7 @@ async function startup() {
     console.log(`✓ Health: http://localhost:${PORT}/health`);
     console.log('✓ WebSocket: /ws');
     console.log('✓ Socket.IO mesh: /socket.io');
+    console.log('✓ MRNN routes: /mrnn/status');
     console.log('✓ All engines initialized');
   });
 }
