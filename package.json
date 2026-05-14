@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "test": "node test/deploy.test.js"
+    "test": "node test/deploy.test.js",
+    "mcp": "tsx trident-mcp-server.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -22,7 +23,9 @@
     "onnxruntime-node": "^1.16.0",
     "simple-git": "^3.20.0",
     "socket.io": "^4.7.5",
-    "ws": "^8.14.2"
+    "tsx": "^4.19.2",
+    "ws": "^8.14.2",
+    "zod": "^3.24.1"
   },
   "engines": {
     "node": ">=22.0.0"
