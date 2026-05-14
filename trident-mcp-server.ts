@@ -8,10 +8,11 @@ const SYNTHIA_API_KEY = process.env.SYNTHIA_API_KEY || "";
 
 const server = new McpServer({
   name: "trident-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 type ToolContent = { content: Array<{ type: "text"; text: string }> };
+type Head = "auto" | "code" | "math" | "research";
 
 function requestHeaders(): Record<string, string> {
   return {
@@ -66,6 +67,14 @@ async function apiPost(path: string, body: unknown): Promise<ToolContent> {
   } catch (error) {
     return toolText(`POST ${path} failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+async function tridentPrompt(prompt: string, head: Head = "auto", use_rag = true): Promise<ToolContent> {
+  return apiPost("/trident/generate", { prompt, head, use_rag });
+}
+
+function suitePrompt(title: string, body: string): string {
+  return `${title}\n\n${body}`.trim();
 }
 
 server.registerTool(
@@ -127,6 +136,57 @@ server.registerTool(
 );
 
 server.registerTool(
+  "code_review",
+  {
+    description: "Review code for bugs, deploy blockers, security issues, and minimal fixes.",
+    inputSchema: {
+      code: z.string().describe("Code to review."),
+      language: z.string().optional().describe("Language or framework."),
+      goal: z.string().optional().describe("What the code should do."),
+    },
+  },
+  async ({ code, language, goal }) => tridentPrompt(
+    suitePrompt("CODE REVIEW", `Language/framework: ${language || "unknown"}\nGoal: ${goal || "not specified"}\n\nReview for blocking errors, security issues, deploy problems, and minimal fixes only.\n\nCODE:\n${code}`),
+    "code",
+    true,
+  ),
+);
+
+server.registerTool(
+  "code_fix_patch",
+  {
+    description: "Produce a minimal patch for broken code without broad refactoring.",
+    inputSchema: {
+      code: z.string().describe("Broken code."),
+      error: z.string().optional().describe("Error message or failure symptom."),
+      constraints: z.string().optional().describe("Constraints such as no refactor or keep APIs stable."),
+    },
+  },
+  async ({ code, error, constraints }) => tridentPrompt(
+    suitePrompt("MINIMAL CODE PATCH", `Error/symptom: ${error || "not provided"}\nConstraints: ${constraints || "minimal changes only"}\n\nReturn a precise patch or corrected file. Preserve intent.\n\nCODE:\n${code}`),
+    "code",
+    true,
+  ),
+);
+
+server.registerTool(
+  "repo_deploy_plan",
+  {
+    description: "Create a deployment plan for a repo or file tree.",
+    inputSchema: {
+      file_tree: z.string().describe("Repo file tree or project structure."),
+      platform: z.enum(["netlify", "render", "railway", "vercel", "generic"]).default("generic"),
+      goal: z.string().optional().describe("Deployment goal."),
+    },
+  },
+  async ({ file_tree, platform, goal }) => tridentPrompt(
+    suitePrompt("DEPLOYMENT PLAN", `Platform: ${platform}\nGoal: ${goal || "make runnable and deployable"}\n\nGiven this file tree, identify exact build command, publish directory, env vars, blockers, and minimal fixes.\n\nTREE:\n${file_tree}`),
+    "code",
+    true,
+  ),
+);
+
+server.registerTool(
   "oracle_ask",
   {
     description: "Ask the Synthia oracle through the live Synthia server.",
@@ -180,6 +240,25 @@ server.registerTool(
     inputSchema: {},
   },
   async () => apiGet("/consciousness/channels"),
+);
+
+server.registerTool(
+  "tool_suite_manifest",
+  {
+    description: "List the Trident-carried MCP tool suite by domain.",
+    inputSchema: {},
+  },
+  async () => toolText({
+    carrier: "Trident",
+    protocol: "MCP over stdio",
+    backend: SYNTHIA_API_BASE,
+    domains: {
+      core: ["trident_generate", "trident_router", "trident_rag_add", "trident_rag_search", "trident_rag_list"],
+      code: ["code_review", "code_fix_patch", "repo_deploy_plan"],
+      oracle_memory: ["oracle_ask", "memory_save", "memory_get"],
+      consciousness: ["consciousness_gate", "consciousness_channels"],
+    },
+  }),
 );
 
 async function main() {
