@@ -6,17 +6,11 @@ import { z } from "zod";
 const SYNTHIA_API_BASE = (process.env.SYNTHIA_API_BASE || "https://synthia-server.onrender.com").replace(/\/$/, "");
 const SYNTHIA_API_KEY = process.env.SYNTHIA_API_KEY || "";
 
-const server = new McpServer({
-  name: "trident-mcp",
-  version: "1.3.0",
-});
+const server = new McpServer({ name: "trident-mcp", version: "1.4.0" });
 
 type ToolContent = { content: Array<{ type: "text"; text: string }> };
 type Head = "auto" | "code" | "math" | "research";
-
-function requestHeaders(): Record<string, string> {
-  return { "Content-Type": "application/json", ...(SYNTHIA_API_KEY ? { Authorization: `Bearer ${SYNTHIA_API_KEY}` } : {}) };
-}
+function requestHeaders(): Record<string, string> { return { "Content-Type": "application/json", ...(SYNTHIA_API_KEY ? { Authorization: `Bearer ${SYNTHIA_API_KEY}` } : {}) }; }
 function stringify(data: unknown): string { return typeof data === "string" ? data : JSON.stringify(data, null, 2); }
 function toolText(data: unknown): ToolContent { return { content: [{ type: "text", text: stringify(data) }] }; }
 async function readBody(response: Response): Promise<unknown> { const text = await response.text(); try { return JSON.parse(text); } catch { return text; } }
@@ -47,11 +41,15 @@ server.registerTool("math_solve", { description: "Solve or analyze a math proble
 server.registerTool("research_summarize", { description: "Summarize research notes, claims, papers, or excerpts.", inputSchema: { material: z.string(), question: z.string().optional(), output: z.enum(["summary", "claims", "experiment_plan", "risks_and_unknowns"]).default("summary") } }, async ({ material, question, output }) => tridentPrompt(suitePrompt("RESEARCH SUMMARY", `Question: ${question || "summarize and extract implications"}\nOutput mode: ${output}\n\nMaterial:\n${material}\n\nReturn key claims, evidence, uncertainties, and useful next steps.`), "research", true));
 server.registerTool("hypothesis_builder", { description: "Turn an idea into hypotheses, tests, observations, and falsification checks.", inputSchema: { idea: z.string(), domain: z.string().optional(), constraints: z.string().optional() } }, async ({ idea, domain, constraints }) => tridentPrompt(suitePrompt("HYPOTHESIS BUILDER", `Domain: ${domain || "unspecified"}\nConstraints: ${constraints || "none"}\nIdea:\n${idea}\n\nCreate hypotheses, predictions, tests, failure modes, and what evidence would change the conclusion.`), "research", true));
 
+server.registerTool("photo_analysis_prompt", { description: "Create a structured prompt for analyzing a photo, chart, screenshot, design, or visual scene with a vision-capable model.", inputSchema: { image_context: z.string(), analysis_goal: z.enum(["describe", "ui_review", "art_direction", "accessibility", "extract_structure", "debug_screenshot"]).default("describe"), constraints: z.string().optional() } }, async ({ image_context, analysis_goal, constraints }) => tridentPrompt(suitePrompt("PHOTO / IMAGE ANALYSIS PROMPT", `Image context: ${image_context}\nGoal: ${analysis_goal}\nConstraints: ${constraints || "be precise; do not hallucinate unseen details"}\n\nCreate a structured analysis checklist and response format for a vision-capable model.`), "research", true));
+server.registerTool("image_generation_brief", { description: "Turn an idea into a detailed image generation or image editing brief.", inputSchema: { concept: z.string(), style: z.string().optional(), must_include: z.string().optional(), must_avoid: z.string().optional(), aspect_ratio: z.string().optional() } }, async ({ concept, style, must_include, must_avoid, aspect_ratio }) => tridentPrompt(suitePrompt("IMAGE GENERATION BRIEF", `Concept: ${concept}\nStyle: ${style || "unspecified"}\nAspect ratio: ${aspect_ratio || "unspecified"}\nMust include: ${must_include || "none specified"}\nMust avoid: ${must_avoid || "none specified"}\n\nCreate a clean prompt, negative prompt, composition notes, lighting/camera notes, and 3 variants.`), "research", true));
+server.registerTool("visual_debug_prompt", { description: "Create a visual debugging checklist for broken UI/screenshots/layouts.", inputSchema: { screenshot_context: z.string(), expected_behavior: z.string().optional(), observed_problem: z.string().optional(), stack: z.string().optional() } }, async ({ screenshot_context, expected_behavior, observed_problem, stack }) => tridentPrompt(suitePrompt("VISUAL DEBUG PROMPT", `Screenshot/context: ${screenshot_context}\nExpected: ${expected_behavior || "not specified"}\nObserved: ${observed_problem || "not specified"}\nStack: ${stack || "unknown"}\n\nCreate a step-by-step visual inspection/debug checklist and likely code areas to inspect.`), "code", true));
+
 server.registerTool("oracle_ask", { description: "Ask the Synthia oracle through the live Synthia server.", inputSchema: { question: z.string(), user_id: z.string().optional() } }, async ({ question, user_id }) => apiPost("/oracle/ask", { question, user_id }));
 server.registerTool("memory_save", { description: "Save a memory entry to Synthia memory.", inputSchema: { user_id: z.string(), key: z.string(), value: z.any() } }, async ({ user_id, key, value }) => apiPost("/memory/save", { user_id, key, value }));
 server.registerTool("memory_get", { description: "Retrieve Synthia memory for a user.", inputSchema: { user_id: z.string() } }, async ({ user_id }) => apiGet(`/memory/${encodeURIComponent(user_id)}`));
 
-server.registerTool("tool_suite_manifest", { description: "List the Trident-carried MCP tool suite by domain.", inputSchema: {} }, async () => toolText({ carrier: "Trident", protocol: "MCP over stdio", backend: SYNTHIA_API_BASE, domains: { core: ["trident_generate", "trident_router", "trident_rag_add", "trident_rag_search", "trident_rag_list"], code: ["code_review", "code_fix_patch", "repo_deploy_plan"], human_design: ["human_design_chart", "human_design_profile", "human_design_gate", "human_design_channels", "coherence_check", "human_design_interpret"], physics_math_research: ["physics_explain", "math_solve", "research_summarize", "hypothesis_builder"], oracle_memory: ["oracle_ask", "memory_save", "memory_get"] } }));
+server.registerTool("tool_suite_manifest", { description: "List the Trident-carried MCP tool suite by domain.", inputSchema: {} }, async () => toolText({ carrier: "Trident", protocol: "MCP over stdio", backend: SYNTHIA_API_BASE, domains: { core: ["trident_generate", "trident_router", "trident_rag_add", "trident_rag_search", "trident_rag_list"], code: ["code_review", "code_fix_patch", "repo_deploy_plan"], human_design: ["human_design_chart", "human_design_profile", "human_design_gate", "human_design_channels", "coherence_check", "human_design_interpret"], physics_math_research: ["physics_explain", "math_solve", "research_summarize", "hypothesis_builder"], images: ["photo_analysis_prompt", "image_generation_brief", "visual_debug_prompt"], oracle_memory: ["oracle_ask", "memory_save", "memory_get"] } }));
 
 async function main() { const transport = new StdioServerTransport(); await server.connect(transport); console.error("Trident MCP Server running on stdio"); }
 main().catch((error) => { console.error("Fatal error in main():", error); process.exit(1); });
