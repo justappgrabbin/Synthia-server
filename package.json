@@ -7,7 +7,13 @@
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
     "test": "node test/deploy.test.js",
-    "mcp": "tsx trident-mcp-server.ts"
+    "mcp": "tsx trident-mcp-server.ts",
+    "youniverse:start": "tsx server/you-n-i-verse/index.ts",
+    "youniverse:dev": "tsx watch server/you-n-i-verse/index.ts",
+    "trident:mcp": "python trident/mcp_server.py",
+    "trident:http": "uvicorn trident.mcp_server:app --host 0.0.0.0 --port ${TRIDENT_PORT:-8000}",
+    "trident:signal": "python trident/signal_server.py",
+    "init:roots": "node server/scripts/init-roots.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
