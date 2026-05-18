@@ -3,10 +3,14 @@ services:
     name: synthia-node
     runtime: node
     buildCommand: npm install
-    startCommand: node server/index.js
+    startCommand: npm run start:lite
     envVars:
       - key: NODE_VERSION
         value: 22
+      - key: NODE_MODE
+        value: lite
+      - key: PYTHON_BRIDGE_URL
+        sync: false
       - key: SUPABASE_PRIMARY_URL
         sync: false
       - key: SUPABASE_PRIMARY_KEY
