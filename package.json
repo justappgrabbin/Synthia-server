@@ -5,7 +5,9 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
+    "start:lite": "node server/lite.js",
     "dev": "nodemon server/index.js",
+    "dev:lite": "nodemon server/lite.js",
     "test": "node test/deploy.test.js",
     "mcp": "tsx trident-mcp-server.ts",
     "youniverse:start": "tsx server/you-n-i-verse/index.ts",
