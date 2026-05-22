@@ -17,6 +17,8 @@ const GovernanceEngine = require('./governance/engine');
 const UserConsentLayer = require('./governance/userConsent');
 const PersonalOverlayEngine = require('./overlay/engine');
 const { attachMRNNRoutes, handleMRNNSocket } = require('./mrnn/routes');
+const attachUniversalRoutes = require('./routes/universal');
+const attachSmartBrowserRoutes = require('./routes/smartBrowser');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -75,6 +77,8 @@ app.get('/', (_req, res) => {
     websocket: '/ws',
     socketio: '/socket.io',
     mrnn: '/mrnn/status',
+    universal_ingest: '/api/v2/ingest/status',
+    smart_browser: '/api/v2/browser/status',
     trident_ready: tridentBridge.ready,
     database: primarySupabase ? 'connected' : 'degraded'
   });
@@ -105,6 +109,8 @@ app.get('/health', async (_req, res) => {
     websocket: '/ws',
     socketio: '/socket.io',
     mrnn: '/mrnn/status',
+    universal_ingest: '/api/v2/ingest/status',
+    smart_browser: '/api/v2/browser/status',
     graph_nodes: graphNodes,
     version: '2.0.0',
     timestamp: new Date().toISOString()
@@ -319,6 +325,8 @@ async function startup() {
 
   app.locals.engines = { modifier, governance, consent, overlay };
   attachMRNNRoutes(app, { tridentBridge, primarySupabase });
+  attachUniversalRoutes(app);
+  attachSmartBrowserRoutes(app);
 
   const server = http.createServer(app);
   app.locals.websocket = attachTridentWebSocket(server);
@@ -330,6 +338,8 @@ async function startup() {
     console.log('✓ WebSocket: /ws');
     console.log('✓ Socket.IO mesh: /socket.io');
     console.log('✓ MRNN routes: /mrnn/status');
+    console.log('✓ Universal ingest routes: /api/v2/ingest/status');
+    console.log('✓ Smart browser routes: /api/v2/browser/status');
     console.log('✓ All engines initialized');
   });
 }
