@@ -13,6 +13,16 @@ function normalizeProgress(task) {
   return task;
 }
 
+async function getFetch() {
+  if (typeof fetch === 'function') return fetch;
+  try {
+    const mod = await import('node-fetch');
+    return mod.default;
+  } catch (_error) {
+    return null;
+  }
+}
+
 async function callMobileMcp(payload) {
   const url = process.env.MOBILE_MCP_URL;
   if (!url) {
@@ -23,7 +33,16 @@ async function callMobileMcp(payload) {
     };
   }
 
-  const response = await fetch(`${url.replace(/\/$/, '')}/tasks`, {
+  const fetchImpl = await getFetch();
+  if (!fetchImpl) {
+    return {
+      delegated: false,
+      mode: 'staged',
+      message: 'fetch unavailable in this Node runtime; task staged instead of delegated.'
+    };
+  }
+
+  const response = await fetchImpl(`${url.replace(/\/$/, '')}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
