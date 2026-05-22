@@ -1,14 +1,17 @@
 """Render entrypoint for SYNTIA.
 
-This module imports the existing FastAPI app from server.py and adds the JSON
-bridge routes expected by the Node Lite service on Render.
+This file intentionally keeps the hyphenated filename requested for Render, so
+Render should launch it with `python render-server.py` instead of importing it
+as a Python module.
 """
 
 import hashlib
 import json
+import os
 import time
 from typing import Any, Dict
 
+import uvicorn
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -90,3 +93,8 @@ async def render_bridge_intent(request: Request):
     hits = rag_search(str(intent), top_k=2)
     analysis = trident_heuristic(str(intent), chosen, 80, 0.75, [h["text"][:160] for h in hits])
     return JSONResponse({"ok": True, "handled_by": "render-python-bridge", "intent": intent, "head": chosen, "router_weights": weights, "analysis": analysis, "requires_confirmation": False})
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "10000"))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
