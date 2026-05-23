@@ -1,7 +1,16 @@
 # Trident Role Map
 
 ## Purpose
-This document prevents the POC from confusing the address model with the worker/connector Trident.
+This document prevents the POC from confusing the Synthia address model with the general Trident system.
+
+It also keeps the current MCP usage clear without turning that usage into a permanent architectural law.
+
+## Current POC Usage
+For the current proof of concept, MCP is the messenger / handoff layer.
+
+That means MCP carries the message or event from the current interaction point into the Synthia server path so it can be routed to the right place.
+
+This is a statement about the current POC usage, not a universal restriction on what MCP may do in other Trident contexts.
 
 ## Correct Separation
 
@@ -10,7 +19,7 @@ This document prevents the POC from confusing the address model with the worker/
 
 It is used for ontological addressing / address-space resolution.
 
-It is not the wakeable Trident worker.
+It is not the wakeable Trident runtime by itself.
 It is not an API endpoint.
 It should not be treated as `/wake`.
 
@@ -23,40 +32,41 @@ TRIDENT_ADDRESS_MODEL_URL=https://huggingface.co/stellarproximology/Trident/reso
 ```
 
 ### General Trident
-General Trident is the connector/worker layer for coding, research, math, MCP, and RAG.
+General Trident is the broader Trident system.
 
-It is represented by the `stellarproximology/Trident` repo and its runtime pieces:
+Trident has capabilities including code, research, math, and RAG.
 
-```txt
-model.py
-rag.py
-rag_client.js
-signal_server.py
-mcp_server.py
-train.py
-```
+Those capabilities describe what Trident can do. They do not define a limit for MCP.
 
-The wake/delegate path belongs to a running Trident connector service, not to the ONNX address model file.
+### Trident MCP
+Trident MCP is the MCP interface attached to Trident.
+
+In this POC, MCP is being used as the messenger/handoff layer for the Kimi / Mobile MCP / Synthia Server / ChatGPT path.
+
+In other contexts, Trident MCP may support whatever coordination the Trident runtime needs.
+
+The wake/delegate path belongs to a running Trident runtime or connector service, not to the ONNX address model file.
 
 Recommended config name:
 
 ```txt
-TRIDENT_CONNECTOR_URL=<running Trident service URL>
+TRIDENT_CONNECTOR_URL=<running Trident runtime or connector service URL>
 ```
 
-## POC Rule
+## POC Flow
 For the current proof of concept:
 
 ```txt
 Kimi / Mobile MCP capture
   -> Synthia Server root connector
-  -> MCP inbox / route
-  -> Trident connector wake if configured
+  -> MCP messenger / handoff path
+  -> Trident runtime participation if needed
   -> ChatGPT inbox visibility
 ```
 
 Addressing uses `Trident_synthia.onnx` as address model infrastructure.
-Delegation uses General Trident as the MCP/RAG connector.
+General Trident provides the broader runtime/capability layer.
+MCP is the messenger/handoff layer for this POC.
 
 ## No Hidden API Keys
 This POC should not require OpenAI API keys or Kimi API keys.
