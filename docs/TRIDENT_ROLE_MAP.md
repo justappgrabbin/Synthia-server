@@ -1,29 +1,38 @@
-# Trident Role Map
+# Current POC Wiring Note
 
 ## Purpose
-This document prevents the POC from confusing the Synthia address model with the general Trident system.
+This note records only the wiring needed for the current proof of concept.
 
-It also keeps the current MCP usage clear without turning that usage into a permanent architectural law.
+It does not assign permanent jobs.
+It does not define what MCP is allowed to do in the full system.
+It does not tell future participants what their roles are.
 
-## Current POC Usage
-For the current proof of concept, MCP is the messenger / handoff layer.
+The current task is to put the pieces where they go for this part of the system.
 
-That means MCP carries the message or event from the current interaction point into the Synthia server path so it can be routed to the right place.
+## Current POC Context
+This part of the system uses MCP as the messenger and handoff path.
 
-This is a statement about the current POC usage, not a universal restriction on what MCP may do in other Trident contexts.
+Current flow:
 
-## Correct Separation
+```txt
+Kimi / Mobile MCP capture
+  -> Synthia Server entry point
+  -> MCP handoff path
+  -> ChatGPT inbox / visible implementation handoff
+```
 
-### Trident_synthia.onnx
+That is the current usage for this POC only.
+
+## Trident_synthia.onnx
 `Trident_synthia.onnx` is the Synthia address model.
 
-It is used for ontological addressing / address-space resolution.
+It belongs to address-space / ontological addressing infrastructure.
 
-It is not the wakeable Trident runtime by itself.
-It is not an API endpoint.
-It should not be treated as `/wake`.
+It is not the message itself.
+It is not a wake endpoint.
+It is not a hidden server-side model API dependency.
 
-Recommended config names:
+Current known location:
 
 ```txt
 TRIDENT_ADDRESS_MODEL_REPO=stellarproximology/Trident
@@ -31,43 +40,33 @@ TRIDENT_ADDRESS_MODEL_FILE=Trident_synthia.onnx
 TRIDENT_ADDRESS_MODEL_URL=https://huggingface.co/stellarproximology/Trident/resolve/main/Trident_synthia.onnx
 ```
 
-### General Trident
-General Trident is the broader Trident system.
+## General Trident
+General Trident is present as the broader Trident system/repo.
 
-Trident has capabilities including code, research, math, and RAG.
-
-Those capabilities describe what Trident can do. They do not define a limit for MCP.
-
-### Trident MCP
-Trident MCP is the MCP interface attached to Trident.
-
-In this POC, MCP is being used as the messenger/handoff layer for the Kimi / Mobile MCP / Synthia Server / ChatGPT path.
-
-In other contexts, Trident MCP may support whatever coordination the Trident runtime needs.
-
-The wake/delegate path belongs to a running Trident runtime or connector service, not to the ONNX address model file.
-
-Recommended config name:
+Current known repo:
 
 ```txt
-TRIDENT_CONNECTOR_URL=<running Trident runtime or connector service URL>
+https://huggingface.co/stellarproximology/Trident
 ```
 
-## POC Flow
-For the current proof of concept:
+Trident has code, research, math, and RAG capabilities. That is a description of what is present, not a rule defining or limiting MCP.
+
+## Current Server Need
+For this pass, Synthia Server only needs to expose the interface and handoff routes needed for the POC:
 
 ```txt
-Kimi / Mobile MCP capture
-  -> Synthia Server root connector
-  -> MCP messenger / handoff path
-  -> Trident runtime participation if needed
-  -> ChatGPT inbox visibility
+/admin
+/client
+/mcp/status
+/mcp/bootstrap
+/mcp/capture
+/mcp/artifact
+/mcp/inbox/chatgpt
+/substrate/inquire
+/router/delegate
 ```
 
-Addressing uses `Trident_synthia.onnx` as address model infrastructure.
-General Trident provides the broader runtime/capability layer.
-MCP is the messenger/handoff layer for this POC.
+## No Hidden Model APIs
+This POC should not require hidden server-side model API keys.
 
-## No Hidden API Keys
-This POC should not require OpenAI API keys or Kimi API keys.
-Kimi and ChatGPT are logical routing labels/inboxes in the bridge, not server-side API clients.
+Kimi and ChatGPT are used as current handoff labels / interaction points in this POC, not as hidden server-side API clients.
