@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synthia Control Center</title>
+<style>
+:root {
+  --void: #050508; --deep: #0a0614; --surface: #0d0d16; --surface2: #151526;
+  --border: rgba(255,255,255,.1); --glow: rgba(139,92,246,.35);
+  --fg: #f0e6ff; --muted: #9b8dbd; --dim: #6b5b8a;
+  --purple: #8b5cf6; --purple2: #c4b5fd; --teal: #14b8a6; --teal2: #5eead4;
+  --pink: #ff6b9d; --danger: #ff4757; --warn: #ffa502; --success: #2ed573;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--void); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+  min-height: 100vh;
+}
+#app { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 0; border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.pulse {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--purple); box-shadow: 0 0 12px var(--glow);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.header h1 { font-size: 20px; letter-spacing: 2px; }
+.header .subtitle { color: var(--muted); font-size: 11px; margin-left: auto; }
+
+/* Talk Section */
+.talk-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 20px; margin-bottom: 20px;
+}
+.talk-box h2 {
+  color: var(--purple2); font-size: 14px; text-transform: uppercase;
+  letter-spacing: .1em; margin-bottom: 12px;
+}
+#talkInput {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; color: var(--fg); font-size: 14px;
+  font-family: inherit; resize: vertical; min-height: 80px;
+  outline: none;
+}
+#talkInput::placeholder { color: var(--dim); }
+.talk-row {
+  display: flex; gap: 10px; margin-top: 12px; align-items: center;
+}
+#routeSelect {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px; color: var(--fg);
+  font-family: inherit; font-size: 12px;
+}
+.btn {
+  background: var(--purple); border: none; border-radius: 10px;
+  padding: 12px 20px; color: #fff; font-size: 12px;
+  font-weight: bold; letter-spacing: 1px; cursor: pointer;
+  transition: .2s;
+}
+.btn:hover { background: var(--purple2); color: var(--void); }
+.btn-secondary {
+  background: rgba(255,255,255,.06); border: 1px solid var(--border);
+  color: var(--fg);
+}
+
+/* Upload */
+.upload-zone {
+  border: 2px dashed var(--border); border-radius: 16px;
+  padding: 40px; text-align: center; margin-bottom: 20px;
+  transition: .2s; cursor: pointer;
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--teal2); background: rgba(20,184,166,.05);
+}
+.upload-zone h3 { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+.upload-zone p { color: var(--dim); font-size: 12px; }
+#fileInput { display: none; }
+
+/* Projects */
+.projects-section h2 {
+  color: var(--teal2); font-size: 14px; text-transform: uppercase;
+  letter-spacing: .1em; margin-bottom: 12px;
+}
+.project-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+}
+.project-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.project-name { font-weight: bold; color: var(--fg); font-size: 13px; }
+.project-status {
+  font-size: 10px; padding: 4px 10px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.status-active { background: rgba(255,179,0,.15); color: var(--warn); border: 1px solid var(--warn); }
+.status-done { background: rgba(46,213,115,.15); color: var(--success); border: 1px solid var(--success); }
+.status-blocked { background: rgba(255,71,87,.15); color: var(--danger); border: 1px solid var(--danger); }
+.project-meta { color: var(--muted); font-size: 11px; margin-bottom: 10px; }
+.project-actions { display: flex; gap: 8px; }
+.project-actions .btn { padding: 8px 14px; font-size: 11px; }
+
+/* Inbox */
+.inbox-section {
+  margin-top: 24px;
+}
+.inbox-section h2 {
+  color: var(--pink); font-size: 14px; text-transform: uppercase;
+  letter-spacing: .1em; margin-bottom: 12px;
+}
+.inbox-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  border-left: 3px solid var(--purple);
+}
+.inbox-item.unread { border-left-color: var(--teal2); }
+.inbox-item.approval { border-left-color: var(--warn); }
+.inbox-item.error { border-left-color: var(--danger); }
+.inbox-source { color: var(--purple2); font-size: 11px; font-weight: bold; margin-bottom: 6px; }
+.inbox-content { color: var(--fg); font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
+.inbox-time { color: var(--dim); font-size: 10px; }
+.inbox-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+/* Website Output */
+.site-section {
+  margin-top: 24px;
+}
+.site-section h2 {
+  color: var(--success); font-size: 14px; text-transform: uppercase;
+  letter-spacing: .1em; margin-bottom: 12px;
+}
+.site-page {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.site-page-info { flex: 1; }
+.site-route { color: var(--teal2); font-size: 12px; font-family: monospace; }
+.site-title { color: var(--fg); font-size: 13px; margin-top: 4px; }
+.site-actions { display: flex; gap: 8px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; right: 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 18px;
+  color: var(--fg); font-size: 13px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  opacity: 0; transform: translateY(20px); transition: .3s;
+  z-index: 1000; max-width: 400px;
+}
+.toast.visible { opacity: 1; transform: translateY(0); }
+
+/* Loading */
+.loading {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid var(--border); border-top-color: var(--purple);
+  border-radius: 50%; animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 600px) {
+  #app { padding: 12px; }
+  .talk-row { flex-direction: column; align-items: stretch; }
+  .project-actions { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="pulse"></div>
+    <h1>SYNTHIA CONTROL CENTER</h1>
+    <span class="subtitle" id="clock">--:--</span>
+  </div>
+
+  <!-- TALK TO HUB -->
+  <div class="talk-box">
+    <h2>💬 Talk to the Hub</h2>
+    <textarea id="talkInput" placeholder="Tell me what you want built, analyzed, fixed, created...
+
+Examples:
+• Build me a landing page for my coaching business
+• Analyze this book and extract the core framework
+• Fix the auth bug in my repo
+• Create a content calendar for next month"></textarea>
+    <div class="talk-row">
+      <select id="routeSelect">
+        <option value="auto">🤖 Auto-route (hub decides)</option>
+        <option value="chatgpt">🟢 ChatGPT (design, code, creative)</option>
+        <option value="claude">🟡 Claude (analysis, long context, safety)</option>
+        <option value="local">🔵 Local Substrate (memory, ingest, process)</option>
+        <option value="website">🌐 Publish to Website</option>
+      </select>
+      <button class="btn" id="sendBtn" onclick="sendToHub()">
+        <span id="sendText">SEND TO ORCHESTRATOR</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <h3>📤 Drop files here or click to upload</h3>
+    <p>PDF, images, code, books, documents — hub will ingest and route</p>
+    <input type="file" id="fileInput" multiple onchange="handleFiles(this.files)">
+  </div>
+
+  <!-- ACTIVE PROJECTS -->
+  <div class="projects-section">
+    <h2>📊 Active Projects</h2>
+    <div id="projectsList">
+      <div class="project-card">
+        <div class="project-header">
+          <span class="project-name">No active projects</span>
+          <span class="project-status status-active">Waiting</span>
+        </div>
+        <div class="project-meta">Send a message or upload a file to get started</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INBOX -->
+  <div class="inbox-section">
+    <h2>📬 Inbox <span id="inboxCount" style="color:var(--dim)"></span></h2>
+    <div id="inboxList">
+      <div class="inbox-item">
+        <div class="inbox-source">SYSTEM</div>
+        <div class="inbox-content">Control Center initialized. Ready to receive commands.</div>
+        <div class="inbox-time">Just now</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEBSITE PAGES -->
+  <div class="site-section">
+    <h2>🌐 Website Pages</h2>
+    <div id="siteList">
+      <div class="site-page">
+        <div class="site-page-info">
+          <div class="site-route">/</div>
+          <div class="site-title">Home (default)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = window.location.origin; // Same server
+
+// Clock
+function tickClock() {
+  document.getElementById('clock').textContent = 
+    new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+}
+setInterval(tickClock, 1000); tickClock();
+
+// Toast
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 4000);
+}
+
+// Send to Hub
+async function sendToHub() {
+  const input = document.getElementById('talkInput');
+  const route = document.getElementById('routeSelect');
+  const btn = document.getElementById('sendBtn');
+  const text = document.getElementById('sendText');
+
+  if (!input.value.trim()) return;
+
+  btn.disabled = true;
+  text.innerHTML = '<span class="loading"></span> Routing...';
+
+  try {
+    const res = await fetch(API + '/api/orchestrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intent: input.value.trim(),
+        route: route.value,
+        source: 'control-center'
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      showToast(`Sent to ${data.routedTo}. Project: ${data.projectId}`);
+      input.value = '';
+      loadProjects();
+      loadInbox();
+    } else {
+      showToast('Error: ' + data.error);
+    }
+  } catch (e) {
+    showToast('Failed to send. Is server running?');
+  }
+
+  btn.disabled = false;
+  text.textContent = 'SEND TO ORCHESTRATOR';
+}
+
+// Handle files
+async function handleFiles(files) {
+  if (!files.length) return;
+
+  showToast(`Uploading ${files.length} file(s)...`);
+
+  for (const file of files) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('route', document.getElementById('routeSelect').value);
+
+    try {
+      const res = await fetch(API + '/api/upload', {
+        method: 'POST',
+        body: form
+      });
+      const data = await res.json();
+      showToast(`Uploaded ${file.name}: ${data.status}`);
+    } catch (e) {
+      showToast(`Failed to upload ${file.name}`);
+    }
+  }
+
+  loadProjects();
+  loadInbox();
+}
+
+// Drag & drop
+document.getElementById('dropZone').addEventListener('dragover', e => {
+  e.preventDefault();
+  e.currentTarget.classList.add('dragover');
+});
+document.getElementById('dropZone').addEventListener('dragleave', e => {
+  e.currentTarget.classList.remove('dragover');
+});
+document.getElementById('dropZone').addEventListener('drop', e => {
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+
+// Load projects
+async function loadProjects() {
+  try {
+    const res = await fetch(API + '/api/projects');
+    const data = await res.json();
+    const list = document.getElementById('projectsList');
+
+    if (!data.projects || !data.projects.length) {
+      list.innerHTML = `<div class="project-card">
+        <div class="project-header">
+          <span class="project-name">No active projects</span>
+          <span class="project-status status-active">Waiting</span>
+        </div>
+        <div class="project-meta">Send a message or upload a file to get started</div>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = data.projects.map(p => `
+      <div class="project-card">
+        <div class="project-header">
+          <span class="project-name">${esc(p.name)}</span>
+          <span class="project-status status-${p.status}">${p.status}</span>
+        </div>
+        <div class="project-meta">${esc(p.goal || '')} • ${p.subscribers} AI(s) connected • ${p.inboxCount} update(s)</div>
+        <div class="project-actions">
+          <button class="btn btn-secondary" onclick="viewProject('${p.id}')">View</button>
+          ${p.status === 'done' ? `<button class="btn" onclick="publishToSite('${p.id}')">Publish</button>` : ''}
+          ${p.status === 'blocked' ? `<button class="btn" onclick="unblockProject('${p.id}')">Unblock</button>` : ''}
+          <button class="btn btn-secondary" onclick="cancelProject('${p.id}')">Cancel</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.log('Projects load failed', e);
+  }
+}
+
+// Load inbox
+async function loadInbox() {
+  try {
+    const res = await fetch(API + '/api/inbox');
+    const data = await res.json();
+    const list = document.getElementById('inboxList');
+    const count = document.getElementById('inboxCount');
+
+    count.textContent = data.count ? `(${data.count} unread)` : '';
+
+    if (!data.items || !data.items.length) {
+      list.innerHTML = `<div class="inbox-item">
+        <div class="inbox-source">SYSTEM</div>
+        <div class="inbox-content">No messages yet. Start by sending a command or uploading a file.</div>
+        <div class="inbox-time">--</div>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = data.items.map(item => `
+      <div class="inbox-item ${item.status} ${item.type === 'human_question' ? 'approval' : ''}">
+        <div class="inbox-source">${esc(item.source || 'SYSTEM')} ${item.urgency ? `• ${item.urgency.toUpperCase()}` : ''}</div>
+        <div class="inbox-content">${esc(item.content || item.question || JSON.stringify(item).slice(0, 200))}</div>
+        <div class="inbox-time">${new Date(item.ts).toLocaleString()}</div>
+        ${item.type === 'human_question' ? `
+          <div class="inbox-actions">
+            <button class="btn" onclick="approveItem('${item.ts}', true)">Approve</button>
+            <button class="btn btn-secondary" onclick="approveItem('${item.ts}', false)">Reject</button>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    console.log('Inbox load failed', e);
+  }
+}
+
+// Load site pages
+async function loadSite() {
+  try {
+    const res = await fetch(API + '/api/site-pages');
+    const data = await res.json();
+    const list = document.getElementById('siteList');
+
+    if (!data.pages || !data.pages.length) return;
+
+    list.innerHTML = data.pages.map(p => `
+      <div class="site-page">
+        <div class="site-page-info">
+          <div class="site-route">${esc(p.route)}</div>
+          <div class="site-title">${esc(p.title)}</div>
+        </div>
+        <div class="site-actions">
+          <button class="btn btn-secondary" onclick="window.open('${esc(p.route)}', '_blank')">View</button>
+          <button class="btn btn-secondary" onclick="deletePage('${p.route}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.log('Site load failed', e);
+  }
+}
+
+// Actions
+async function viewProject(id) {
+  showToast('Opening project ' + id);
+  // Could open modal or navigate
+}
+
+async function publishToSite(id) {
+  const route = prompt('URL path? (e.g. /landing-page)', '/project-' + id.slice(-6));
+  if (!route) return;
+
+  try {
+    const res = await fetch(API + '/api/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: id, route })
+    });
+    const data = await res.json();
+    showToast(data.success ? 'Published to ' + route : 'Failed: ' + data.error);
+    loadSite();
+  } catch (e) {
+    showToast('Publish failed');
+  }
+}
+
+async function unblockProject(id) {
+  try {
+    await fetch(API + '/api/projects/' + id + '/unblock', { method: 'POST' });
+    showToast('Project unblocked');
+    loadProjects();
+  } catch (e) {
+    showToast('Failed to unblock');
+  }
+}
+
+async function cancelProject(id) {
+  if (!confirm('Cancel project ' + id + '?')) return;
+  try {
+    await fetch(API + '/api/projects/' + id, { method: 'DELETE' });
+    showToast('Project cancelled');
+    loadProjects();
+  } catch (e) {
+    showToast('Failed to cancel');
+  }
+}
+
+async function approveItem(ts, approved) {
+  try {
+    await fetch(API + '/api/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ts: parseInt(ts), approved })
+    });
+    showToast(approved ? 'Approved' : 'Rejected');
+    loadInbox();
+    loadProjects();
+  } catch (e) {
+    showToast('Failed to respond');
+  }
+}
+
+async function deletePage(route) {
+  if (!confirm('Delete ' + route + '?')) return;
+  try {
+    await fetch(API + '/api/site-pages' + route, { method: 'DELETE' });
+    showToast('Page deleted');
+    loadSite();
+  } catch (e) {
+    showToast('Failed to delete');
+  }
+}
+
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]);
+}
+
+// Init
+loadProjects();
+loadInbox();
+loadSite();
+setInterval(() => { loadProjects(); loadInbox(); }, 10000); // Auto-refresh every 10s
+
+// Enter key on textarea
+document.getElementById('talkInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendToHub();
+  }
+});
+</script>
+</body>
+</html>
