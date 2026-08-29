@@ -1,0 +1,44 @@
+{
+  "id": "editor-morph",
+  "name": "Editor Morph",
+  "kind": "app",
+  "identityPolicy": "preserve",
+  "donor": {
+    "name": "synth-ai-morph-base-native-single.html",
+    "location": "ChatGPT File Library",
+    "status": "located-not-copied",
+    "notes": "Existing donor contains native ingest/regenerate, Base Builder, app/widget creation, phone visual editor, native app runner, local persistence and export behavior. Do not replace with a newly invented editor."
+  },
+  "dependencies": [
+    "runtime-foundation",
+    "self-build-effectors"
+  ],
+  "requiredCapabilities": [
+    "zip-ingest",
+    "address-map",
+    "calibrate",
+    "morph",
+    "save-whole-artifact",
+    "native-runner",
+    "phone-visual-editor",
+    "base-builder",
+    "export"
+  ],
+  "integrationRules": {
+    "noIframeMirror": true,
+    "noParallelRegistry": true,
+    "canonicalAddressRequired": true,
+    "preserveExistingFunctionality": true,
+    "approvalRequiredForSelfModification": true,
+    "deletionAllowed": false,
+    "verificationRequiredBeforePromotion": true
+  },
+  "promotionGate": {
+    "status": "blocked",
+    "blockedBy": [
+      "runtime-foundation",
+      "self-build-effectors",
+      "donor-source-copy"
+    ]
+  }
+}
