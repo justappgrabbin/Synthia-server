@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "repository": "justappgrabbin/Synthia-server",
+  "policy": "dependency-order-preserve-identity",
+  "currentFrontier": "legacy-control-center-mcp-address-bridge",
+  "queue": [
+    {
+      "order": 1,
+      "id": "runtime-foundation",
+      "kind": "substrate",
+      "status": "next",
+      "requires": [],
+      "includes": ["canonical-state-space", "canonical-event-envelope", "mesh", "ato-bridge"],
+      "reason": "All later apps need one live addressed state and message substrate."
+    },
+    {
+      "order": 2,
+      "id": "self-build-effectors",
+      "kind": "capability-family",
+      "status": "blocked-by-runtime-foundation",
+      "requires": ["runtime-foundation"],
+      "includes": ["tool-factory", "code-effectors", "approval-gate", "rollback", "verification"]
+    },
+    {
+      "order": 3,
+      "id": "editor-morph",
+      "kind": "app",
+      "status": "donor-located",
+      "requires": ["runtime-foundation", "self-build-effectors"],
+      "donor": "synth-ai-morph-base-native-single.html",
+      "includes": ["zip-ingest", "address-map", "calibrate", "morph", "native-runner", "phone-visual-editor", "base-builder", "export"],
+      "preserveIdentity": true
+    },
+    {
+      "order": 4,
+      "id": "language-code-tools",
+      "kind": "capability-family",
+      "status": "queued",
+      "requires": ["editor-morph"],
+      "includes": ["autoling", "diseminer", "paraphraser", "coding-tools"]
+    },
+    {
+      "order": 5,
+      "id": "smart-browser",
+      "kind": "app",
+      "status": "queued",
+      "requires": ["runtime-foundation", "self-build-effectors"]
+    },
+    {
+      "order": 6,
+      "id": "foundry",
+      "kind": "app-family",
+      "status": "queued",
+      "requires": ["editor-morph", "self-build-effectors"]
+    },
+    {
+      "order": 7,
+      "id": "embodiment-world",
+      "kind": "projection-family",
+      "status": "queued",
+      "requires": ["runtime-foundation"]
+    }
+  ]
+}
