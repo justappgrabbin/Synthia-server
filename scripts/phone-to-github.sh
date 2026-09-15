@@ -5,6 +5,8 @@ IFS=$'\n\t'
 # Cynthia Phone Hand
 # Usage: bash phone-to-github.sh '/sdcard/Download/MyProject.zip' [repo-name]
 # The original input is never modified.
+# If the Synthia Automaton ZIP and Field Scanner YAML are present in Downloads,
+# they are copied into the new repo before the first push.
 
 say(){ printf '\n[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 die(){ printf '\n[FAIL] %s\n' "$*" >&2; exit 1; }
@@ -67,6 +69,47 @@ tar -C "$SOURCE" \
   --exclude='*.key' \
   -cf - . | tar -C "$WORK" -xf -
 
+# Optional Synthia seed files already on the phone.
+AUTOMATON_ZIP="${SYNTHIA_AUTOMATON_ZIP:-/sdcard/Download/github-app-automaton-FIXED-v2.1.0.zip}"
+FIELD_SCANNER="${SYNTHIA_FIELD_SCANNER:-/sdcard/Download/synthia-field-scanner.yml}"
+SEED_DIR="$RUN/seed"
+mkdir -p "$WORK/.github/workflows" "$SEED_DIR"
+SEEDED=()
+
+if [ -f "$AUTOMATON_ZIP" ]; then
+  if [ -e "$WORK/automaton" ]; then
+    say "Automaton folder already exists in project; preserving it and skipping Automaton seed"
+  else
+    say "Seeding App Automaton from $(basename "$AUTOMATON_ZIP")"
+    unzip -q "$AUTOMATON_ZIP" '.github/workflows/app-automaton.yml' 'automaton/*' -d "$SEED_DIR"
+    if [ -d "$SEED_DIR/automaton" ]; then
+      cp -a "$SEED_DIR/automaton" "$WORK/automaton"
+    fi
+    if [ -f "$SEED_DIR/.github/workflows/app-automaton.yml" ]; then
+      TARGET="$WORK/.github/workflows/app-automaton.yml"
+      if [ -e "$TARGET" ]; then
+        TARGET="$WORK/.github/workflows/app-automaton.synthia-$STAMP.yml"
+      fi
+      cp "$SEED_DIR/.github/workflows/app-automaton.yml" "$TARGET"
+    fi
+    SEEDED+=("automaton")
+  fi
+else
+  say "Automaton seed not found at $AUTOMATON_ZIP; continuing without it"
+fi
+
+if [ -f "$FIELD_SCANNER" ]; then
+  say "Seeding Synthia Field Scanner from $(basename "$FIELD_SCANNER")"
+  TARGET="$WORK/.github/workflows/synthia-field-scanner.yml"
+  if [ -e "$TARGET" ]; then
+    TARGET="$WORK/.github/workflows/synthia-field-scanner.synthia-$STAMP.yml"
+  fi
+  cp "$FIELD_SCANNER" "$TARGET"
+  SEEDED+=("field-scanner")
+else
+  say "Field Scanner seed not found at $FIELD_SCANNER; continuing without it"
+fi
+
 cd "$WORK"
 git init -b main >/dev/null
 git config user.name "Synthia Phone Hand"
@@ -86,3 +129,8 @@ URL="$(gh repo view "$FULL" --json url --jq .url)"
 say "Done"
 printf 'Repository: %s\n' "$URL"
 printf 'Original input preserved: yes\n'
+if [ "${#SEEDED[@]}" -gt 0 ]; then
+  printf 'Synthia seed: %s\n' "$(IFS=,; echo "${SEEDED[*]}")"
+else
+  printf 'Synthia seed: none found locally\n'
+fi
