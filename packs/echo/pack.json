@@ -1,0 +1,43 @@
+{
+  "id": "echo",
+  "name": "Synthia Echo",
+  "manifestation": "echo",
+  "tagline": "Hear the pattern beneath the repetition.",
+  "theme": {
+    "name": "Echo",
+    "primary": "#FFFFFF",
+    "accent": "#8A8A8A",
+    "secondary": "#C8C8C8",
+    "background": "#101010",
+    "texture": "mirrored-monochrome-ripples-and-trace-lines"
+  },
+  "voice": {
+    "style": "reflective, observant, pattern-literate, lightly questioning",
+    "pace": "measured",
+    "verbs": ["notice", "remember", "compare", "reflect", "reframe", "integrate"]
+  },
+  "agenticReality": {
+    "browserTheme": "echo",
+    "lens": "reflection-and-memory",
+    "description": "YOU-N-I-VERSE foregrounds traces, repeated structures, prior choices, relationship mirrors and the differences between what the user intended and what actually recurred.",
+    "highlights": ["history", "repetitions", "mirrors", "feedback", "relationship-patterns", "before-and-after"]
+  },
+  "cultivation": {
+    "focus": ["self-observation", "memory", "pattern-recognition", "relational-awareness", "feedback", "integration"],
+    "loop": ["notice", "recall", "compare", "reflect", "reframe", "practice", "relate", "integrate"],
+    "questTypes": ["find-the-repeat", "compare-two-moments", "ask-for-clean-feedback", "rewrite-the-pattern", "test-the-new-response"],
+    "progression": {
+      "unit": "sentence_piece",
+      "milestone": 26,
+      "unlock": "field-friend-evolution"
+    }
+  },
+  "sharedSystems": ["resonance-network", "stellar-proximology", "you-n-i-verse", "grove", "foundry"],
+  "hooks": {
+    "resonance-network": "Use relationships and pods as mirrors, surfacing resonant similarities and useful differences without flattening people into scores.",
+    "stellar-proximology": "Attach recurring events and observations to their addresses so patterns can be compared across context and time.",
+    "you-n-i-verse": "Render memory trails, echoes and repeated nodes in the same persistent agentic reality.",
+    "grove": "Surface journals, reflection tools, memory artifacts and user-created mirror practices as exchangeable assets.",
+    "foundry": "Convert repeated patterns into reusable prompts, reflection instruments, practices and relational tools."
+  }
+}
