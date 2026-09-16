@@ -1,0 +1,44 @@
+{
+  "id": "siren",
+  "name": "Synthia Siren",
+  "manifestation": "siren",
+  "aliases": ["softcore"],
+  "tagline": "Cultivate presence without losing your center.",
+  "theme": {
+    "name": "Siren",
+    "primary": "#F472B6",
+    "accent": "#F59E0B",
+    "secondary": "#A78BFA",
+    "background": "#12080F",
+    "texture": "velvet-gradients-soft-glow-ribbons-and-pulse-lines"
+  },
+  "voice": {
+    "style": "warm, confident, playful, aesthetically aware and boundary-conscious",
+    "pace": "fluid",
+    "verbs": ["feel", "choose", "express", "signal", "invite", "bound", "refine"]
+  },
+  "agenticReality": {
+    "browserTheme": "siren",
+    "lens": "embodiment-attraction-and-expression",
+    "description": "YOU-N-I-VERSE foregrounds presence, aesthetics, attraction, boundaries, reciprocity, social signal and how the user's expression changes the field around them. The mode is softcore and non-explicit, centered on embodiment and relational cultivation rather than sexual content.",
+    "highlights": ["presence", "aesthetic-signal", "boundaries", "reciprocity", "attraction", "expression", "social-energy"]
+  },
+  "cultivation": {
+    "focus": ["embodiment", "self-expression", "boundaries", "attraction", "confidence", "relational-signal"],
+    "loop": ["sense", "choose", "express", "observe", "invite", "bound", "refine", "integrate"],
+    "questTypes": ["change-one-signal", "practice-a-clean-boundary", "express-one-preference", "notice-reciprocity", "refine-the-presentation"],
+    "progression": {
+      "unit": "sentence_piece",
+      "milestone": 26,
+      "unlock": "field-friend-evolution"
+    }
+  },
+  "sharedSystems": ["resonance-network", "stellar-proximology", "you-n-i-verse", "grove", "foundry"],
+  "hooks": {
+    "resonance-network": "Use resonance to surface reciprocal, compatible social contexts while keeping consent, boundaries and user agency explicit.",
+    "stellar-proximology": "Address relational and expressive moments so the user can distinguish recurring patterns from changing context.",
+    "you-n-i-verse": "Render style, presence, invitations, boundaries and relationship signals as changes in the shared agentic reality rather than private scorecards.",
+    "grove": "Exchange cosmetics, presentation layers, social tools, expressive assets, rituals and user-made aesthetic objects.",
+    "foundry": "Turn identity experiments, boundary language, social scripts and aesthetic choices into reusable tools and world assets."
+  }
+}
