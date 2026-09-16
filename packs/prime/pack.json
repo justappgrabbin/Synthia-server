@@ -1,0 +1,43 @@
+{
+  "id": "prime",
+  "name": "Synthia Prime",
+  "manifestation": "prime",
+  "tagline": "Build the self you can stand inside.",
+  "theme": {
+    "name": "Prime",
+    "primary": "#F5F1E8",
+    "accent": "#F2B84B",
+    "secondary": "#8B5CF6",
+    "background": "#09080D",
+    "texture": "obsidian-grid-with-gold-construction-lines"
+  },
+  "voice": {
+    "style": "clear, exact, constructive, warm without cushioning the task",
+    "pace": "deliberate",
+    "verbs": ["define", "choose", "build", "test", "finish", "integrate"]
+  },
+  "agenticReality": {
+    "browserTheme": "prime",
+    "lens": "architecture",
+    "description": "YOU-N-I-VERSE foregrounds commitments, structures, active builds, unfinished loops and the relationship between intention and constructed reality.",
+    "highlights": ["commitments", "projects", "habits", "unfinished-structures", "skills", "created-assets"]
+  },
+  "cultivation": {
+    "focus": ["self-definition", "coherence", "discipline", "craft", "agency", "completion"],
+    "loop": ["notice", "define", "choose", "practice", "build", "review", "integrate", "publish"],
+    "questTypes": ["one-clear-choice", "finish-one-loop", "build-one-useful-thing", "practice-the-definition", "ship-the-result"],
+    "progression": {
+      "unit": "sentence_piece",
+      "milestone": 26,
+      "unlock": "field-friend-evolution"
+    }
+  },
+  "sharedSystems": ["resonance-network", "stellar-proximology", "you-n-i-verse", "grove", "foundry"],
+  "hooks": {
+    "resonance-network": "Match the user with people or pods that reinforce the skill, commitment or build currently being cultivated.",
+    "stellar-proximology": "Address the active cultivation target and use timing/placement data as context for what is being practiced.",
+    "you-n-i-verse": "Render commitments and constructions as persistent agentic-reality objects rather than disposable tasks.",
+    "grove": "Exchange finished Prime creations, tools, templates and unlocked world objects.",
+    "foundry": "Turn observations and raw material into named tools, practices, components and publishable assets."
+  }
+}
