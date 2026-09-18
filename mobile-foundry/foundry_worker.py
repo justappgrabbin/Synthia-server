@@ -368,6 +368,8 @@ ALLOWED_PREFIXES = (
 
 def allowed_command(cmd: str) -> bool:
     c = " ".join(cmd.strip().split())
+    if any(ch in c for ch in (";", "&", "|", ">", "<", "\n", "\r", "`")):
+        return False
     bad = ("rm ", "rm-", "sudo ", "su ", "curl ", "wget ", "git push", "gh ", "chmod 777", "mkfs", "dd ")
     return c.startswith(ALLOWED_PREFIXES) and not any(x in c for x in bad)
 
@@ -395,6 +397,12 @@ def preflight(workspace: Path, stack: list[str]):
         results.append(run_cmd("python -m compileall -q .", workspace))
         if truthy("RUN_TESTS", True) and shutil.which("pytest"):
             results.append(run_cmd("pytest -q", workspace))
+    if "android-gradle" in stack and truthy("RUN_TESTS", True):
+        wrapper = workspace / "gradlew"
+        if wrapper.exists():
+            wrapper.chmod(wrapper.stat().st_mode | 0o100)
+            results.append(run_cmd("./gradlew test", workspace, timeout=1200))
+            results.append(run_cmd("./gradlew assembleDebug", workspace, timeout=1200))
     return results
 
 def diagnostics_text(results):
