@@ -1,0 +1,50 @@
+name: Pocket Foundry CI
+
+on:
+  pull_request:
+    paths:
+      - "mobile-foundry/**"
+      - ".github/workflows/pocket-foundry-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python syntax
+        run: python -m py_compile mobile-foundry/foundry_worker.py
+      - name: Shell syntax
+        run: |
+          bash -n mobile-foundry/install.sh
+          bash -n mobile-foundry/foundryctl
+      - name: Smoke test safe ZIP ingest
+        run: |
+          export HOME="$RUNNER_TEMP/home"
+          mkdir -p "$HOME/.synthia-foundry" "$RUNNER_TEMP/inbox/demo"
+          cp mobile-foundry/config.example.env "$HOME/.synthia-foundry/config.env"
+          printf '{"scripts":{"test":"echo ok","build":"echo built"}}\n' > "$RUNNER_TEMP/inbox/demo/package.json"
+          printf '<h1>demo</h1>\n' > "$RUNNER_TEMP/inbox/demo/index.html"
+          (
+            cd "$RUNNER_TEMP/inbox"
+            zip -qr demo.zip demo
+            rm -rf demo
+          )
+          cat > "$HOME/.synthia-foundry/config.env" <<EOF
+          INBOX_DIR=$RUNNER_TEMP/inbox
+          WORK_ROOT=$HOME/.synthia-foundry
+          POLL_SECONDS=5
+          SYNTHIA_SERVER_URL=
+          MODEL_MODE=none
+          DEV_AGENT_CMD=
+          ALLOW_INSTALL=0
+          RUN_TESTS=1
+          MAX_AGENT_ATTEMPTS=1
+          QUEUE_TO_SYNTHIA=0
+          EOF
+          python mobile-foundry/foundry_worker.py --once
+          test -n "$(find "$HOME/.synthia-foundry/outbox" -name '*-result.zip' -print -quit)"
+          test -n "$(find "$HOME/.synthia-foundry/jobs" -name job.json -print -quit)"
