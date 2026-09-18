@@ -1,0 +1,19 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -euo pipefail
+ROOT="${HOME}/.synthia-foundry"
+SERVICE="synthia-foundry"
+cmd="${1:-status}"
+case "$cmd" in
+  start) sv up "$SERVICE" ;;
+  stop) sv down "$SERVICE" ;;
+  restart) sv restart "$SERVICE" ;;
+  status) sv status "$SERVICE" || true ;;
+  logs) tail -n 120 "$ROOT/logs/worker.log" 2>/dev/null || true ;;
+  jobs) find "$ROOT/jobs" -maxdepth 2 -name job.json -print 2>/dev/null | tail -n 30 ;;
+  outbox) ls -lah "$ROOT/outbox" 2>/dev/null || true ;;
+  run-once) "$PREFIX/bin/python" "$ROOT/bin/foundry_worker.py" --once ;;
+  *)
+    echo "Usage: foundryctl {start|stop|restart|status|logs|jobs|outbox|run-once}"
+    exit 2
+    ;;
+esac
