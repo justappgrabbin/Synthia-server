@@ -4,9 +4,9 @@
   "description": "Self-modifying ontological operating system",
   "main": "server/lite.js",
   "scripts": {
-    "start": "node --max-old-space-size=1024 -r ./server/control-preload.js server/lite.js",
+    "start": "node --max-old-space-size=1024 -r ./server/control-preload.js -r ./server/computer-github-preload.js server/lite.js",
     "start:full": "node --max-old-space-size=1536 server/index.js",
-    "start:lite": "node --max-old-space-size=1024 -r ./server/control-preload.js server/lite.js",
+    "start:lite": "node --max-old-space-size=1024 -r ./server/control-preload.js -r ./server/computer-github-preload.js server/lite.js",
     "dev": "nodemon server/index.js",
     "dev:lite": "nodemon -r ./server/control-preload.js server/lite.js",
     "test": "node test/deploy.test.js",
@@ -16,7 +16,8 @@
     "trident:mcp": "python trident/mcp_server.py",
     "trident:http": "uvicorn trident.mcp_server:app --host 0.0.0.0 --port ${TRIDENT_PORT:-8000}",
     "trident:signal": "python trident/signal_server.py",
-    "init:roots": "node server/scripts/init-roots.mjs"
+    "init:roots": "node server/scripts/init-roots.mjs",
+    "test:computer-github": "node --test test/computer-github-routes.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
