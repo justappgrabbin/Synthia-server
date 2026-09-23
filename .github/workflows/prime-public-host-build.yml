@@ -1,0 +1,137 @@
+name: Build Prime host transport
+
+on:
+  push:
+    branches: [ prime-apk-build-v0.2.0 ]
+    paths-ignore:
+      - 'prime-output/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repair Git TLS CA path
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -s /etc/ssl/certs/ca-certificates.crt
+          git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
+          echo "GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android API 35
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          AJ="$ANDROID_HOME/platforms/android-35/android.jar"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$AJ"
+          unzip -tqq "$AJ"
+          unzip -Z1 "$AJ" | grep -qx 'android/app/Activity.class'
+          unzip -Z1 "$AJ" | grep -qx 'resources.arsc'
+          test -x "$BT/aapt"
+          test -x "$BT/d8"
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+
+      - name: Materialize Prime host source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p work
+          cat \
+            prime-build/src.part1a.b64 \
+            prime-build/src.part1b.b64 \
+            prime-build/src.part2.b64 \
+            prime-build/src.part3.b64 \
+            prime-build/src.part4.b64 \
+            prime-build/src.part5.b64 \
+            | base64 -d > /tmp/prime-host-code.tar.gz
+          echo "7616ede6cb517e644430113b93c15c312d9602285b406c47ff068508b17caf12  /tmp/prime-host-code.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/prime-host-code.tar.gz -C work
+
+      - name: Compile Prime host
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          AJ="$ANDROID_HOME/platforms/android-35/android.jar"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          MAN=work/main/AndroidManifest.xml
+          mkdir -p build/classes build/dex
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("work/main/AndroidManifest.xml")
+          s=p.read_text()
+          needle='<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+          repl='<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.synthia.prime" android:versionCode="2" android:versionName="0.2.0-prime-owner-hands">\n    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="35" />'
+          if needle not in s: raise SystemExit("manifest root mismatch")
+          p.write_text(s.replace(needle,repl,1))
+
+          a=Path("work/main/java/org/synthia/prime/ActionQueue.java")
+          s=a.read_text()
+          old='return new JSONObject(x.toString());'
+          if old not in s: raise SystemExit("ActionQueue fix target missing")
+          a.write_text(s.replace(old,'return x;',1))
+
+          m=Path("work/main/java/org/synthia/prime/MainActivity.java")
+          s=m.read_text()
+          old='Process p=new ProcessBuilder'
+          if old not in s: raise SystemExit("MainActivity Process fix target missing")
+          m.write_text(s.replace(old,'java.lang.Process p=new ProcessBuilder',1))
+          PY
+
+          "$BT/aapt" package -f -M "$MAN" -S work/main/res -I "$AJ" -F build/base.apk
+          mapfile -t JAVA_FILES < <(find work/main/java -type f -name '*.java' -print | sort)
+          test "${#JAVA_FILES[@]}" -gt 0
+          javac -source 17 -target 17 -cp "$AJ" -d build/classes "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find build/classes -type f -name '*.class' -print | sort)
+          test "${#CLASS_FILES[@]}" -gt 0
+          "$BT/d8" --min-api 28 --lib "$AJ" --output build/dex "${CLASS_FILES[@]}"
+          test -s build/dex/classes.dex
+          cp build/base.apk build/Synthia-Prime-host-unsigned.apk
+          (cd build/dex && zip -q -0 ../Synthia-Prime-host-unsigned.apk classes.dex)
+          unzip -tqq build/Synthia-Prime-host-unsigned.apk
+          unzip -Z1 build/Synthia-Prime-host-unsigned.apk | grep -qx 'classes.dex'
+
+      - name: Commit compiled transport payload
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BT=/usr/local/lib/android/sdk/build-tools/35.0.0
+          rm -rf prime-output
+          mkdir -p prime-output/toolchain/lib
+          cp build/Synthia-Prime-host-unsigned.apk prime-output/
+          cp "$BT/zipalign" prime-output/toolchain/
+          cp "$BT/apksigner" prime-output/toolchain/
+          cp "$BT/lib/apksigner.jar" prime-output/toolchain/lib/
+          if [ -d "$BT/lib64" ]; then cp -a "$BT/lib64" prime-output/toolchain/; fi
+          chmod +x prime-output/toolchain/zipalign prime-output/toolchain/apksigner
+          sha256sum prime-output/Synthia-Prime-host-unsigned.apk > prime-output/Synthia-Prime-host-unsigned.apk.sha256
+          ldd prime-output/toolchain/zipalign || true
+          prime-output/toolchain/apksigner version
+
+          git config user.name "synthia-build-bot"
+          git config user.email "synthia-build-bot@users.noreply.github.com"
+          git add prime-output
+          git commit -m "Prime host compiled transport [skip ci]"
+          git push origin HEAD:prime-apk-build-v0.2.0
