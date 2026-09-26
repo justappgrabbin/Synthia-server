@@ -59,11 +59,10 @@ def detokenize(ids: list) -> str:
 
 
 # ── MCP Server ──
-mcp = FastMCP(
-    name="trident",
-    version="1.0.0",
-    description="TRIDENT 3-head LM with P2P RAG. Heads: code | math | research."
-)
+# FastMCP (mcp<2) takes the server name positionally; it has no version or
+# description kwargs. The description lives in the tool docs instead.
+TRIDENT_DESCRIPTION = "TRIDENT 3-head LM with P2P RAG. Heads: code | math | research."
+mcp = FastMCP("trident")
 
 
 @mcp.tool(

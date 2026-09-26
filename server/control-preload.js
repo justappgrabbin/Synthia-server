@@ -181,7 +181,7 @@ const originalUse = express.application.use;
 express.application.use = function patchedUse(...args) {
   const last = args[args.length - 1];
   const src = typeof last === 'function' ? String(last) : '';
-  if (src.includes('route_not_found_in_node_lite')) installControlRoutes(this);
+  if (src.includes('route_not_found_in_node_lite') || src.includes('route_not_found_in_synthia_mcp_bus')) installControlRoutes(this);
   return originalUse.apply(this, args);
 };
 

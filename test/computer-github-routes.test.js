@@ -36,3 +36,31 @@ test('GitHub failures surface instead of being swallowed', async () => {
   });
   await assert.rejects(() => client.status(), /forbidden/);
 });
+
+test('setToken swaps the runtime token and owner is derived from /user', async () => {
+  const seen = [];
+  const fakeFetch = async (url, options = {}) => {
+    seen.push({ url, auth: options.headers?.Authorization });
+    if (url.endsWith('/user')) return response(200, { login: 'someone', id: 7 });
+    if (url.includes('/actions/workflows/')) return response(200, { workflow_runs: [] });
+    return response(500, { message: 'unexpected request' });
+  };
+  const client = createGitHubClient({ token: '', username: '', fetchImpl: fakeFetch });
+  await assert.rejects(() => client.status(), /github_token_not_configured/);
+  client.setToken('runtime-token');
+  const result = await client.latestWorkflowRun({ repo: 'r', workflowId: 'w.yml' });
+  assert.equal(result.ok, true);
+  assert.equal(seen.some(c => c.url.includes('/repos/someone/r/')), true);
+  assert.equal(seen.every(c => c.auth === 'Bearer runtime-token'), true);
+});
+
+test('stored token file is written 0600 and read back', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { writeStoredGitHubToken, readStoredGitHubToken } = require('../server/computer-github-routes');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gh-token-')), 'github-token');
+  writeStoredGitHubToken('abc123', file);
+  assert.equal(readStoredGitHubToken(file), 'abc123');
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+});

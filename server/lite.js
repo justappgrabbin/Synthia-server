@@ -9,7 +9,9 @@ const crypto = require('crypto');
 const { spawn, exec } = require('child_process');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = Number(process.env.PORT || 10000);
+const HOST = process.env.HOST || '0.0.0.0';
+const EMBEDDED = process.env.SYNTHIA_EMBEDDED === '1';
 const NODE_MODE = process.env.NODE_MODE || 'lite';
 const MCP_TERMINAL_COMMAND = process.env.MCP_TERMINAL_COMMAND || 'npm run mcp';
 const TRIDENT_MCP_COMMAND = process.env.TRIDENT_MCP_COMMAND || 'npx tsx trident-mcp-server.ts';
@@ -221,5 +223,18 @@ app.get('/api/v3/discovery/status', (_req, res) => res.json({ ok: true, mounted:
 app.get('/router/status', (_req, res) => res.json({ ok: true, router: 'online', role: 'MCP everyone connector', routes: status().endpoints }));
 app.post('/router/delegate', (req, res) => res.json({ ok: true, message: sendMessage('delegation', req.body || {}) }));
 
+// Optional route packs. These used to be attached by -r preloads that waited
+// for a 404 marker lite.js no longer emits, so they ended up behind the
+// catch-all 404. Install them explicitly here, before the 404 handler.
+function installRoutePack(label, loader) {
+  try {
+    loader();
+  } catch (error) {
+    console.warn(`⚠ ${label} not mounted: ${error.message}`);
+  }
+}
+installRoutePack('Control routes', () => require('./control-preload').installControlRoutes(app));
+installRoutePack('Computer GitHub bridge', () => require('./computer-github-preload').install(app));
+
 app.use((req, res) => res.status(404).json({ ok: false, error: 'route_not_found_in_synthia_mcp_bus', path: req.path, hint: 'Use /terminal, /api/status, /mcp/status, /mcp/bus, /mcp/route, /mcp/inbox/chatgpt, /trident/mcp/status, or /api/v3/discovery/health.' }));
-app.listen(PORT, () => { console.log(`✓ Synthia MCP connector bus listening on ${PORT}`); console.log(`✓ MCP command: ${MCP_TERMINAL_COMMAND}`); console.log(`✓ Trident command: ${TRIDENT_MCP_COMMAND}`); });
+app.listen(PORT, HOST, () => { console.log(`✓ Synthia MCP connector bus listening on ${HOST}:${PORT}`); if (EMBEDDED) console.log(`✓ Embedded mode, heap limit ${Math.round(require('v8').getHeapStatistics().heap_size_limit / 1048576)} MB`); console.log(`✓ MCP command: ${MCP_TERMINAL_COMMAND}`); console.log(`✓ Trident command: ${TRIDENT_MCP_COMMAND}`); });

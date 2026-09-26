@@ -97,4 +97,5 @@ async def render_bridge_intent(request: Request):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "10000"))
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    host = os.environ.get("HOST", "0.0.0.0")
+    uvicorn.run(app, host=host, port=port, log_level="info")

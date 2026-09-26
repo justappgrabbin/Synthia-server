@@ -13,11 +13,12 @@
     "mcp": "tsx trident-mcp-server.ts",
     "youniverse:start": "tsx server/you-n-i-verse/index.ts",
     "youniverse:dev": "tsx watch server/you-n-i-verse/index.ts",
-    "trident:mcp": "python trident/mcp_server.py",
+    "trident:mcp": "python3 mcp_server.py",
     "trident:http": "uvicorn trident.mcp_server:app --host 0.0.0.0 --port ${TRIDENT_PORT:-8000}",
     "trident:signal": "python trident/signal_server.py",
     "init:roots": "node server/scripts/init-roots.mjs",
-    "test:computer-github": "node --test test/computer-github-routes.test.js"
+    "test:computer-github": "node --test test/computer-github-routes.test.js",
+    "start:embedded": "node --max-old-space-size=${SYNTHIA_NODE_HEAP_MB:-320} server/lite.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

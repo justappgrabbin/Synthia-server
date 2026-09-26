@@ -1,0 +1,9 @@
+# Minimal Python deps for the embedded (phone / Alpine arm64) Synthia runtime.
+# render-server.py + server.py run without numpy/onnxruntime/torch/swisseph
+# (they are optional imports with heuristic fallbacks).
+fastapi>=0.110.0
+uvicorn>=0.27.0
+sse-starlette>=2.0.0
+httpx>=0.26.0
+python-multipart>=0.0.9
+mcp>=1.0.0,<2
