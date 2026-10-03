@@ -57,56 +57,11 @@ const upload = multer({
 // ── WEBSOCKET ─────────────────────────────────────────────────────────────────
 
 const clients = new Set<WebSocket>();
-const resonancePeers = new Map<string, WebSocket>();
-
-function peerList() {
-  return [...resonancePeers.keys()];
-}
-
-function publishPeerList() {
-  const msg = JSON.stringify({ type: 'peers', list: peerList(), ts: Date.now() });
-  resonancePeers.forEach(peer => {
-    if (peer.readyState === WebSocket.OPEN) peer.send(msg);
-  });
-}
 
 wss.on('connection', ws => {
   clients.add(ws);
-  let resonanceDeviceId: string | null = null;
-
-  ws.send(JSON.stringify({ type: 'connected', server: 'paper-worlds', version: '1.1.0', resonanceSignal: true }));
-
-  ws.on('message', raw => {
-    let msg: any;
-    try {
-      msg = JSON.parse(raw.toString());
-    } catch {
-      return;
-    }
-
-    if (msg?.type === 'register' && typeof msg.deviceId === 'string' && msg.deviceId.trim()) {
-      resonanceDeviceId = msg.deviceId.trim();
-      resonancePeers.set(resonanceDeviceId, ws);
-      publishPeerList();
-      return;
-    }
-
-    if (['offer', 'answer', 'ice'].includes(msg?.type) && typeof msg.to === 'string') {
-      const target = resonancePeers.get(msg.to);
-      if (target?.readyState === WebSocket.OPEN) {
-        target.send(JSON.stringify({ ...msg, from: resonanceDeviceId ?? msg.from ?? null }));
-      }
-      return;
-    }
-  });
-
-  ws.on('close', () => {
-    clients.delete(ws);
-    if (resonanceDeviceId && resonancePeers.get(resonanceDeviceId) === ws) {
-      resonancePeers.delete(resonanceDeviceId);
-      publishPeerList();
-    }
-  });
+  ws.send(JSON.stringify({ type: 'connected', server: 'paper-worlds', version: '1.0.0' }));
+  ws.on('close', () => clients.delete(ws));
 });
 
 function broadcast(type: string, data: any) {
