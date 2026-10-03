@@ -7,8 +7,11 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { spawn, exec } = require('child_process');
+const http = require('http');
+const { WebSocketServer, WebSocket } = require('ws');
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 10000;
 const NODE_MODE = process.env.NODE_MODE || 'lite';
 const MCP_TERMINAL_COMMAND = process.env.MCP_TERMINAL_COMMAND || 'npm run mcp';
@@ -22,6 +25,65 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: Number(process.env.RATE_LIMIT_MAX || 500) }));
 app.use(express.json({ limit: process.env.JSON_LIMIT || '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_LIMIT || '50mb' }));
+
+const signalPeers = new Map();
+const signalWss = new WebSocketServer({ server: httpServer, path: '/signal', maxPayload: 64 * 1024 });
+
+function cleanDeviceId(value) {
+  return String(value || '').trim().replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 160);
+}
+function signalPeerList() {
+  return [...signalPeers.keys()];
+}
+function signalBroadcastPeers() {
+  const payload = JSON.stringify({ type: 'peers', list: signalPeerList(), ts: Date.now() });
+  for (const ws of signalPeers.values()) {
+    if (ws.readyState === WebSocket.OPEN) {
+      try { ws.send(payload); } catch {}
+    }
+  }
+}
+signalWss.on('connection', (ws) => {
+  let deviceId = null;
+  ws.send(JSON.stringify({ type: 'signal-ready', protocol: 'resonance-webrtc-v1', ts: Date.now() }));
+  ws.on('message', raw => {
+    let msg;
+    try { msg = JSON.parse(raw.toString()); } catch { return; }
+    const type = String(msg?.type || '');
+    if (type === 'register') {
+      const nextId = cleanDeviceId(msg.deviceId);
+      if (!nextId) {
+        ws.send(JSON.stringify({ type: 'error', error: 'device_id_required' }));
+        return;
+      }
+      deviceId = nextId;
+      const prior = signalPeers.get(deviceId);
+      if (prior && prior !== ws && prior.readyState === WebSocket.OPEN) {
+        try { prior.close(4001, 'replaced by newer connection'); } catch {}
+      }
+      signalPeers.set(deviceId, ws);
+      signalBroadcastPeers();
+      return;
+    }
+    if (type === 'offer' || type === 'answer' || type === 'ice') {
+      if (!deviceId) return;
+      const targetId = cleanDeviceId(msg.to);
+      const target = signalPeers.get(targetId);
+      if (target?.readyState === WebSocket.OPEN) {
+        const forwarded = { ...msg, from: deviceId, to: targetId };
+        delete forwarded.deviceId;
+        try { target.send(JSON.stringify(forwarded)); } catch {}
+      }
+    }
+  });
+  ws.on('close', () => {
+    if (deviceId && signalPeers.get(deviceId) === ws) {
+      signalPeers.delete(deviceId);
+      signalBroadcastPeers();
+    }
+  });
+  ws.on('error', () => {});
+});
 
 const now = () => new Date().toISOString();
 const id = (p) => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -208,6 +270,7 @@ app.post('/trident/mcp/stop', (req, res) => { if (!auth(req, res)) return; if (t
 app.post('/terminal/run', (req, res) => { if (!auth(req, res)) return; const command = safe(req.body?.command, 600).trim(); if (!command) return res.status(400).json({ ok: false, error: 'command_required' }); log(`[terminal] ${command}`); exec(command, { cwd: process.cwd(), env: process.env, timeout: Number(process.env.TERMINAL_COMMAND_TIMEOUT_MS || 25000), maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => res.json({ ok: !error, command, stdout: safe(stdout, 20000), stderr: safe(stderr, 20000), error: error ? error.message : null, code: error && typeof error.code !== 'undefined' ? error.code : 0, timestamp: now() })); });
 
 app.get('/api/v3/discovery/health', (_req, res) => res.json({ ok: true, service: 'synthia-discovery', mounted: true, agents: Object.keys(state.agents).length, messages: state.discovery_messages.length, timestamp: now() }));
+app.get('/api/v3/discovery/signal', (_req, res) => res.json({ ok: true, protocol: 'resonance-webrtc-v1', path: '/signal', connected_peers: signalPeers.size, peer_ids: signalPeerList(), persists_payloads: false, timestamp: now() }));
 app.post('/api/v3/discovery/register', (req, res) => { const agent = normalizeAgent(req.body || {}); state.agents[agent.id] = agent; ensureInbox(agent.id); res.json({ ok: true, registered: true, agent }); });
 app.post('/api/v3/discovery/heartbeat/:agentId', (req, res) => { const key = String(req.params.agentId || '').toLowerCase(); if (state.agents[key]) state.agents[key].last_seen = now(); res.json({ ok: true, agent_id: key, known: Boolean(state.agents[key]), last_seen: now() }); });
 app.get('/api/v3/discovery/agents', (_req, res) => res.json({ ok: true, agents: Object.values(state.agents), count: Object.keys(state.agents).length }));
@@ -222,4 +285,4 @@ app.get('/router/status', (_req, res) => res.json({ ok: true, router: 'online', 
 app.post('/router/delegate', (req, res) => res.json({ ok: true, message: sendMessage('delegation', req.body || {}) }));
 
 app.use((req, res) => res.status(404).json({ ok: false, error: 'route_not_found_in_synthia_mcp_bus', path: req.path, hint: 'Use /terminal, /api/status, /mcp/status, /mcp/bus, /mcp/route, /mcp/inbox/chatgpt, /trident/mcp/status, or /api/v3/discovery/health.' }));
-app.listen(PORT, () => { console.log(`✓ Synthia MCP connector bus listening on ${PORT}`); console.log(`✓ MCP command: ${MCP_TERMINAL_COMMAND}`); console.log(`✓ Trident command: ${TRIDENT_MCP_COMMAND}`); });
+httpServer.listen(PORT, () => { console.log(`✓ Synthia MCP connector bus listening on ${PORT}`); console.log(`✓ Resonance WebRTC signal endpoint: /signal`); console.log(`✓ MCP command: ${MCP_TERMINAL_COMMAND}`); console.log(`✓ Trident command: ${TRIDENT_MCP_COMMAND}`); });
